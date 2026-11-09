@@ -1,0 +1,58 @@
+{
+  "deactivated_overlap": {
+    "exclusion_npis": 8743,
+    "in_both": 951,
+    "other_npis": 360673
+  },
+  "enrollment": {
+    "distinct_npis": 2576755,
+    "has_status_column": false,
+    "lines": 3030023,
+    "lines_not_valid_utf8": 11
+  },
+  "enrollment_overlap": {
+    "exclusion_npis": 8743,
+    "in_both": 15,
+    "other_npis": 2576755
+  },
+  "exclusions": {
+    "npi_column": {
+      "absent": 75169,
+      "records": 84093,
+      "usable": 8924
+    },
+    "npi_fanout": {
+      "distinct_npis": 8743,
+      "npis_on_more_than_one_record": 177,
+      "records_with_a_usable_npi": 8924,
+      "worst_npi_record_count": 3
+    },
+    "reachable_by_tier": {
+      "name_and_state_only_business": 2869,
+      "name_and_state_only_individual": 861,
+      "records": 84093,
+      "tier1_exact_npi": 8924,
+      "tier2_name_and_dob": 71439
+    },
+    "tier2_key": {
+      "keys_formable": 78743,
+      "keys_held_by_more_than_one_record": 997,
+      "records_on_a_shared_key": 2020,
+      "worst_key_record_count": 4
+    }
+  },
+  "measured": [
+    "exclusions",
+    "deactivated_overlap",
+    "registry_weekly",
+    "enrollment",
+    "enrollment_overlap"
+  ],
+  "registry_weekly": {
+    "carrying_a_deactivation_date": 803,
+    "entity_type_absent": 711,
+    "individuals": 24434,
+    "organisations": 6417,
+    "records": 31562
+  }
+}
