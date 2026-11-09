@@ -1,0 +1,86 @@
+name: checks
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  suite:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+
+      - name: install
+        run: python -m pip install -r requirements.txt -r requirements-dev.txt
+
+      # No downloads. Every check reads a committed fixture, which is the
+      # point of committing them.
+      - name: checks
+        run: python tests/run_all.py
+
+  configuration:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.9.8
+
+      - name: formatting
+        run: terraform -chdir=infra fmt -check -diff
+
+      # No backend and no credentials. This grades the configuration against
+      # the provider schema and nothing else, and it cannot see an argument
+      # nobody wrote, which is what the suite above is for.
+      - name: init
+        run: terraform -chdir=infra init -backend=false -input=false
+
+      - name: validate
+        run: terraform -chdir=infra validate
+
+  deploy:
+    # Nothing to deploy to. There is no Snowflake account for this project and
+    # no service user, so this job has no identity to assume and is held off
+    # rather than left to fail on every push. The step below is the shape the
+    # deploy takes once the account exists.
+    if: false
+    needs: [suite, configuration]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.9.8
+
+      # The runner is issued a token, writes it to a file, and the provider
+      # reads the file. Nothing long lived is stored anywhere.
+      - name: identity token
+        run: |
+          curl -sS -H "Authorization: bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" \
+            "$ACTIONS_ID_TOKEN_REQUEST_URL&audience=snowflake" \
+            | python -c "import json,sys; sys.stdout.write(json.load(sys.stdin)['value'])" \
+            > "$RUNNER_TEMP/snowflake-oidc-token"
+
+      - name: apply
+        env:
+          SNOWFLAKE_TOKEN_FILE_PATH: ${{ runner.temp }}/snowflake-oidc-token
+          TF_VAR_organization_name: ${{ vars.SNOWFLAKE_ORGANIZATION }}
+          TF_VAR_account_name: ${{ vars.SNOWFLAKE_ACCOUNT }}
+          TF_VAR_ci_user_name: ${{ vars.SNOWFLAKE_CI_USER }}
+          TF_VAR_deploy_warehouse_name: ${{ vars.SNOWFLAKE_DEPLOY_WAREHOUSE }}
+        run: |
+          terraform -chdir=infra init -backend=false -input=false
+          terraform -chdir=infra apply -auto-approve
