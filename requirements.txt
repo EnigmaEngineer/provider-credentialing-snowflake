@@ -1,0 +1,7 @@
+# The registry readers and the profile are standard library only. The one
+# dependency is for the deactivation report, which the NPI registry publishes
+# as a spreadsheet rather than as a delimited file.
+#
+# Pinned to a version with a wheel for the Python floor this repository
+# declares, which is 3.10. Checked with pip download rather than assumed.
+openpyxl==3.1.5

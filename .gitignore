@@ -1,0 +1,10 @@
+data/raw/
+data/work/
+*.duckdb
+*.duckdb.wal
+__pycache__/
+*.pyc
+.terraform/
+.terraform.lock.hcl
+terraform.tfstate
+terraform.tfstate.backup

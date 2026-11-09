@@ -1,0 +1,11 @@
+# The suite reads the workflow file as a document rather than as text, because
+# a check on a workflow written with a regex is a check on the spelling of its
+# arguments. Separate from requirements.txt so the runtime readers keep exactly
+# one dependency.
+PyYAML==6.0.3
+
+# A second, independent reading of the configuration files. screening/tfread.py
+# is a reader for the subset of the language this repository writes, and the
+# only honest way to know it reads that subset correctly is to grade it against
+# a parser somebody else wrote.
+python-hcl2==7.3.1
