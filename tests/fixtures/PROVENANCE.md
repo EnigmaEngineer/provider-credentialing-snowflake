@@ -23,3 +23,22 @@ the malformed branch of the classifier is never reached by anything.
 `infra_bad/bad.tf` is written to be broken. Every rule that grades the
 configuration has to fire on it, which is what stops a set of passing rules
 from being a set of rules pointed at nothing. Nothing deploys from it.
+
+`fivetran_bad/bad.tf` is the same idea for the replication configuration. Every
+rule in `credentialing/ftrules.py` has to fire on it. Every resource in it
+validates against the provider schema, which is the point: each one is a
+capability configured so that it does not happen.
+
+The exclusion fixture gained a ninth row when the surname sentinel was handled.
+Two different reasons a person cannot form a fallback key now have a row each.
+One carries no date of birth. The other's surname arrived as the serialised
+null, which reads as a populated surname to anything that checks only for
+emptiness. Before that row existed, the fixture's key collision was built
+entirely on the sentinel pair, so handling the sentinel removed the only
+collision case in the file. It is now built on a real surname instead.
+
+The seeds under `transform/seeds/` are not derived from anything. They are hand
+written to carry the column states that decide whether a staging model is
+right, and the deletion marker appears as true, as false and as absent. A seed
+where that column happens to be populated makes the defect those models exist
+to avoid invisible.

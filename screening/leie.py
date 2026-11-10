@@ -19,6 +19,16 @@ COLUMNS = (
 # REINDATE and WAIVERDATE, so every one of those needs the same treatment.
 ABSENT = "0"
 
+# The surname column carries a second sentinel and it is a word rather than a
+# digit. Three records hold the four character string NULL, which is a
+# serialised null that reached the file as text. A fallback key built on it
+# matches every other record serialised the same way.
+#
+# Only the exact word is treated as absent. NA appears as a given name on three
+# records and is left alone, because NA is a name somebody can have and NULL is
+# not.
+ABSENT_NAME = "NULL"
+
 ABSENT_NPI = "absent"
 MALFORMED_NPI = "malformed"
 USABLE_NPI = "usable"
@@ -51,8 +61,19 @@ def classify_npi(value: str | None) -> str:
 
 
 def is_individual(row: dict) -> bool:
-    """A business record carries BUSNAME and no person name. It has no date of birth either."""
-    return bool((row.get("LASTNAME") or "").strip())
+    """A business record carries BUSNAME and no person name.
+
+    Two separate questions live near each other here and conflating them puts
+    a person in the wrong bucket. Whether this record is about a person is one
+    question. Whether a key can be formed that identifies that person is
+    another, and a surname that arrived as the serialised null answers no to
+    the second while leaving the first alone. Those records carry a given name,
+    so they are people reachable by name and state and not businesses.
+    """
+    last = (row.get("LASTNAME") or "").strip().upper()
+    if last and last != ABSENT_NAME:
+        return True
+    return bool((row.get("FIRSTNAME") or "").strip())
 
 
 def tier2_key(row: dict) -> tuple[str, str, str] | None:
@@ -66,7 +87,9 @@ def tier2_key(row: dict) -> tuple[str, str, str] | None:
     last = (row.get("LASTNAME") or "").strip().upper()
     first = (row.get("FIRSTNAME") or "").strip().upper()
     dob = (row.get("DOB") or "").strip()
-    if not last or not first or not dob or dob == ABSENT:
+    if not last or last == ABSENT_NAME:
+        return None
+    if not first or not dob or dob == ABSENT:
         return None
     return (last, first, dob)
 

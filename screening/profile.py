@@ -55,7 +55,12 @@ def tier2_key_collisions(rows):
             counts[k] += 1
     shared = {k: v for k, v in counts.items() if v > 1}
     return {
-        "keys_formable": len(counts),
+        # Two different quantities and the design question needs both. The
+        # distinct keys say how many providers the tier can tell apart. The
+        # records say how many it can reach at all, and that is the number
+        # every other figure in this profile is a count of records.
+        "distinct_keys": len(counts),
+        "records_that_can_form_a_key": sum(counts.values()),
         "keys_held_by_more_than_one_record": len(shared),
         "records_on_a_shared_key": sum(shared.values()),
         "worst_key_record_count": max(counts.values()) if counts else 0,

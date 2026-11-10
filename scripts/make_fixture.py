@@ -10,6 +10,11 @@ remembered. Every date of birth is replaced and every street address is
 cleared, because a name beside a date of birth is the pair this project masks
 in the warehouse and committing it here would publish exactly that.
 
+Two rows reach the same bucket by different routes and both are kept. A person
+with no date of birth cannot form a fallback key. Neither can a person whose
+surname arrived as the serialised null, and that one reads as a populated
+surname to anything checking only for emptiness.
+
 One case has no real example. No record in the real file carries an NPI that
 fails its check digit, so the malformed row is constructed and labelled.
 
@@ -48,6 +53,7 @@ def pick(rows):
         "tier1": None,
         "tier2": None,
         "individual_no_dob": None,
+        "sentinel_surname": None,
         "business": None,
     }
     fanout = []
@@ -66,7 +72,14 @@ def pick(rows):
             if want["tier2"] is None:
                 want["tier2"] = row
         elif leie.is_individual(row):
-            if want["individual_no_dob"] is None:
+            # Two different reasons a person has no key and the fixture needs
+            # both. One has no date of birth. The other has a surname that
+            # arrived as the serialised null, which reads as a surname to
+            # anything that only checks for emptiness.
+            if (row.get("LASTNAME") or "").strip().upper() == leie.ABSENT_NAME:
+                if want["sentinel_surname"] is None:
+                    want["sentinel_surname"] = row
+            elif want["individual_no_dob"] is None:
                 want["individual_no_dob"] = row
         else:
             if want["business"] is None:
@@ -93,6 +106,7 @@ def build(rows):
     out.extend(blank_identity(r) for r in fanout)
     out.append(blank_identity(want["tier2"]))
     out.append(blank_identity(want["individual_no_dob"]))
+    out.append(blank_identity(want["sentinel_surname"]))
     out.append(blank_identity(want["business"]))
 
     # A second row sharing the tier two key of the one above it. Constructed,

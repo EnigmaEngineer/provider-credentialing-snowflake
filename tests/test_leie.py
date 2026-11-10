@@ -27,7 +27,7 @@ def fixture_rows():
 
 def check_the_fixture_is_readable():
     rows = fixture_rows()
-    assert len(rows) == 8, len(rows)
+    assert len(rows) == 9, len(rows)
 
 
 def check_a_header_that_is_not_the_expected_one_is_refused():
@@ -157,16 +157,22 @@ def check_a_business_record_is_not_an_individual():
 # these buckets happen to hold the same count, so a rule that swapped them
 # would leave every sum where it was.
 FIXTURE_PROFILE = {
-    "npi_column": {"records": 8, "absent": 4, "usable": 3, "malformed": 1},
+    "npi_column": {"records": 9, "absent": 5, "usable": 3, "malformed": 1},
     "reachable": {
-        "records": 8,
+        "records": 9,
         "tier1_exact_npi": 3,
         "tier2_name_and_dob": 3,
-        "name_and_state_only_individual": 1,
+        # Two people and two different reasons neither can form a key. One has
+        # no date of birth. The other's surname arrived as the serialised null.
+        "name_and_state_only_individual": 2,
         "name_and_state_only_business": 1,
     },
     "tier2": {
-        "keys_formable": 2,
+        # Two quantities rather than one. Three records can form a key and
+        # they land on two distinct keys, so the pair that collides is visible
+        # in the difference between these two numbers and in nothing else.
+        "distinct_keys": 2,
+        "records_that_can_form_a_key": 3,
         "keys_held_by_more_than_one_record": 1,
         "records_on_a_shared_key": 2,
         "worst_key_record_count": 2,
@@ -255,7 +261,8 @@ def check_a_shared_tier_two_key_is_reported():
     got = profile.tier2_key_collisions(rows)
     assert got["keys_held_by_more_than_one_record"] >= 1, got
     assert got["records_on_a_shared_key"] >= 2, got
-    assert got["keys_formable"] < len(rows), got
+    assert got["distinct_keys"] < got["records_that_can_form_a_key"], got
+    assert got["records_that_can_form_a_key"] < len(rows), got
 
 
 def check_the_overlap_helper_carries_both_denominators():
@@ -277,7 +284,8 @@ def check_the_profile_functions_report_zero_rather_than_one_on_no_rows():
     assert profile.exclusion_npi_profile([]) == {}
     assert profile.reachability([]) == {}
     assert profile.tier2_key_collisions([]) == {
-        "keys_formable": 0,
+        "distinct_keys": 0,
+        "records_that_can_form_a_key": 0,
         "keys_held_by_more_than_one_record": 0,
         "records_on_a_shared_key": 0,
         "worst_key_record_count": 0,
@@ -288,3 +296,58 @@ def check_the_profile_functions_report_zero_rather_than_one_on_no_rows():
         "npis_on_more_than_one_record": 0,
         "worst_npi_record_count": 0,
     }
+
+
+def check_whether_a_record_is_about_a_person_is_decided_by_both_name_columns():
+    # Written against dicts rather than fixture rows, because the cases that
+    # separate the two clauses do not occur in the real file and a fixture row
+    # for each would be two constructed rows carrying nothing else.
+    #
+    # The fixture masks both clauses. Every record in it that has a surname
+    # also has a given name, so a rule reading either column alone agrees with
+    # the right answer on all nine rows. A mutation pass found that and this is
+    # the answer to it.
+    cases = (
+        # surname, given name, is this about a person
+        ("AAKER", "DEBHANNA", True),
+        ("AAKER", "", True),
+        ("", "DEBHANNA", True),
+        ("", "", False),
+        # The serialised null is not a surname. With a given name beside it the
+        # record is still about a person, and without one there is no name at
+        # all.
+        (leie.ABSENT_NAME, "ANGELA", True),
+        (leie.ABSENT_NAME, "", False),
+        (leie.ABSENT_NAME.lower(), "", False),
+        # A surname that merely contains the word is a surname.
+        ("NULLINGTON", "", True),
+    )
+    wrong = []
+    for last, first, expected in cases:
+        row = {"LASTNAME": last, "FIRSTNAME": first, "BUSNAME": "SOME CLINIC INC"}
+        got = leie.is_individual(row)
+        if got is not expected:
+            wrong.append((last, first, got, expected))
+    assert not wrong, wrong
+
+
+def check_a_serialised_null_surname_forms_no_fallback_key():
+    # The key is what clears a provider without a person looking, so a key
+    # built on the word would clear everyone whose surname arrived the same way.
+    row = {"LASTNAME": leie.ABSENT_NAME, "FIRSTNAME": "ANGELA", "DOB": "19710329"}
+    assert leie.tier2_key(row) is None, leie.tier2_key(row)
+    row["LASTNAME"] = "AAKER"
+    assert leie.tier2_key(row) == ("AAKER", "ANGELA", "19710329"), leie.tier2_key(row)
+
+
+def check_the_doubling_boundary_in_the_check_digit_cannot_be_reached():
+    # A mutation pass moves this boundary and the suite stays green. That is an
+    # equivalent mutant rather than a gap, and the reason is arithmetic: the
+    # value tested has just been doubled, so it is always even and the boundary
+    # sits on an odd number nothing can produce.
+    #
+    # Proved here rather than argued in a comment, because the next person to
+    # see that survivor will otherwise go looking for a missing check.
+    doubled = {2 * digit for digit in range(10)}
+    assert 9 not in doubled, sorted(doubled)
+    assert max(doubled) == 18 and min(doubled) == 0, sorted(doubled)
