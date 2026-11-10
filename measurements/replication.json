@@ -1,0 +1,133 @@
+{
+ "arms": [
+  "pk_default",
+  "pk_full",
+  "pk_index",
+  "no_pk",
+  "identity_nothing"
+ ],
+ "catalog": {
+  "identity_nothing": {
+   "has_primary_key": true,
+   "replica_identity": "n"
+  },
+  "no_pk": {
+   "has_primary_key": false,
+   "replica_identity": "d"
+  },
+  "pk_default": {
+   "has_primary_key": true,
+   "replica_identity": "d"
+  },
+  "pk_full": {
+   "has_primary_key": true,
+   "replica_identity": "f"
+  },
+  "pk_index": {
+   "has_primary_key": true,
+   "replica_identity": "i"
+  }
+ },
+ "measured": [
+  "catalog",
+  "statements",
+  "wal_per_table"
+ ],
+ "server_wal_level": "logical",
+ "statements": {
+  "identity_nothing": {
+   "delete": {
+    "accepted": false,
+    "error": "cannot delete from table \"identity_nothing\" because it does not have a replica identity and publishes deletes"
+   },
+   "insert": {
+    "accepted": true,
+    "error": null
+   },
+   "update": {
+    "accepted": false,
+    "error": "cannot update table \"identity_nothing\" because it does not have a replica identity and publishes updates"
+   }
+  },
+  "no_pk": {
+   "delete": {
+    "accepted": false,
+    "error": "cannot delete from table \"no_pk\" because it does not have a replica identity and publishes deletes"
+   },
+   "insert": {
+    "accepted": true,
+    "error": null
+   },
+   "update": {
+    "accepted": false,
+    "error": "cannot update table \"no_pk\" because it does not have a replica identity and publishes updates"
+   }
+  },
+  "pk_default": {
+   "delete": {
+    "accepted": true,
+    "error": null
+   },
+   "insert": {
+    "accepted": true,
+    "error": null
+   },
+   "update": {
+    "accepted": true,
+    "error": null
+   }
+  },
+  "pk_full": {
+   "delete": {
+    "accepted": true,
+    "error": null
+   },
+   "insert": {
+    "accepted": true,
+    "error": null
+   },
+   "update": {
+    "accepted": true,
+    "error": null
+   }
+  },
+  "pk_index": {
+   "delete": {
+    "accepted": true,
+    "error": null
+   },
+   "insert": {
+    "accepted": true,
+    "error": null
+   },
+   "update": {
+    "accepted": true,
+    "error": null
+   }
+  }
+ },
+ "wal_messages_total": 38,
+ "wal_per_table": {
+  "identity_nothing": [
+   "IN"
+  ],
+  "no_pk": [
+   "IN"
+  ],
+  "pk_default": [
+   "IN",
+   "UN",
+   "DK"
+  ],
+  "pk_full": [
+   "IN",
+   "UO",
+   "DO"
+  ],
+  "pk_index": [
+   "IN",
+   "UK",
+   "DK"
+  ]
+ }
+}
