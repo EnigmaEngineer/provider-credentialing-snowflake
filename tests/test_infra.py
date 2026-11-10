@@ -441,6 +441,14 @@ def check_the_reader_counts_the_configuration_blocks_it_is_given():
     # blocks fails here rather than quietly shrinking what the rules grade.
     entries = tfread.read_dir(INFRA)
     resources = [b for _n, b in entries if b.kind == "resource"]
-    assert len(resources) == 29, len(resources)
-    assert len([b for _n, b in entries if b.kind == "variable"]) == 10, entries
+    assert len(resources) == 34, len(resources)
+    assert len([b for _n, b in entries if b.kind == "variable"]) == 18, entries
+    # Split by provider, because one count over two providers hides a reader
+    # that drops every block of one of them.
+    by_provider = {}
+    for _name, block in entries:
+        if block.kind == "resource" and block.labels:
+            prefix = block.labels[0].split("_")[0]
+            by_provider[prefix] = by_provider.get(prefix, 0) + 1
+    assert by_provider == {"snowflake": 29, "fivetran": 5}, by_provider
     assert len([b for _n, b in entries if b.kind == "provider"]) == 1, entries

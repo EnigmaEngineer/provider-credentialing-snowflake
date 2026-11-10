@@ -105,7 +105,13 @@ def check_the_pooling_the_reader_does_is_the_only_difference():
         if deeper:
             pooled[label] = deeper
     assert pooled == {
-        "snowflake_grant_privileges_to_account_role.transformer_registry_select": ["future"]
+        "snowflake_grant_privileges_to_account_role.transformer_registry_select": ["future"],
+        # The replication schema configuration nests a table block inside a
+        # schema block, so the reader reports table at the top of the nested
+        # set. The pooling is deliberate and the rule about an inline
+        # credential depends on it, because a credential would be written one
+        # level in.
+        "fivetran_connector_schema_config.credentialing": ["table"],
     }, pooled
 
 

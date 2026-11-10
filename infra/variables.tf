@@ -53,3 +53,43 @@ variable "cost_alert_recipients" {
     error_message = "A credit monitor with no recipients suspends a warehouse and notifies nobody."
   }
 }
+
+variable "snowflake_host" {
+  description = "Snowflake host the replication destination connects to. The account identifier with the Snowflake domain after it."
+  type        = string
+}
+
+variable "raw_database" {
+  description = "The database the replication lands in. Separate from the analytics database on purpose."
+  type        = string
+}
+
+variable "loading_warehouse" {
+  description = "The warehouse the replication runs its loads on. Named rather than left to a user default."
+  type        = string
+}
+
+variable "fivetran_snowflake_user" {
+  description = "The Snowflake service user the replication writes as."
+  type        = string
+}
+
+variable "fivetran_snowflake_role" {
+  description = "The role that service user assumes. Without it the replication takes whatever default role the user has."
+  type        = string
+}
+
+variable "credentialing_host" {
+  description = "Host of the credentialing application's own database."
+  type        = string
+}
+
+variable "credentialing_database" {
+  description = "Database name in the credentialing application."
+  type        = string
+}
+
+variable "fivetran_postgres_user" {
+  description = "The Postgres user the replication reads as. It needs replication rights and nothing more."
+  type        = string
+}

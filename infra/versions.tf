@@ -6,5 +6,10 @@ terraform {
       source  = "snowflakedb/snowflake"
       version = "2.23.0"
     }
+
+    fivetran = {
+      source  = "fivetran/fivetran"
+      version = "1.9.55"
+    }
   }
 }

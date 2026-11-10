@@ -116,11 +116,23 @@ def check_the_deploy_passes_a_value_for_every_variable_with_no_default():
     unsupplied = sorted(needed - supplied)
     # Named rather than asserted away. These are the ones a deploy would have
     # to be given and the account does not exist to give them yet.
+    #
+    # The replication variables joined the list. There is no account for that
+    # connector either, so the deploy has nothing to give them, and the job
+    # that would use them is held off.
     expected_gap = [
         "cost_alert_recipients",
+        "credentialing_database",
+        "credentialing_host",
+        "fivetran_postgres_user",
+        "fivetran_snowflake_role",
+        "fivetran_snowflake_user",
         "loader_rsa_public_key",
+        "loading_warehouse",
         "monthly_credit_quota",
+        "raw_database",
         "registry_landing_url",
+        "snowflake_host",
         "storage_aws_role_arn",
     ]
     assert unsupplied == expected_gap, unsupplied
