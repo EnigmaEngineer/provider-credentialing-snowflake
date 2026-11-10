@@ -1,0 +1,47 @@
+{
+ "measured": [
+  "resolved",
+  "names_agreeing_across_targets"
+ ],
+ "names_agreeing_across_targets": [],
+ "resolved": {
+  "duckdb": {
+   "adapter": "duckdb",
+   "models": {
+    "stg_credentialing__application": "\"screening\".\"staging\".\"stg_credentialing__application\"",
+    "stg_credentialing__committee_decision": "\"screening\".\"staging\".\"stg_credentialing__committee_decision\"",
+    "stg_credentialing__license": "\"screening\".\"staging\".\"stg_credentialing__license\"",
+    "stg_credentialing__provider": "\"screening\".\"staging\".\"stg_credentialing__provider\"",
+    "stg_registry__exclusion": "\"screening\".\"staging\".\"stg_registry__exclusion\""
+   },
+   "sources": {
+    "raw_credentialing_application": "\"screening\".\"main\".\"raw_credentialing_application\"",
+    "raw_credentialing_committee_decision": "\"screening\".\"main\".\"raw_credentialing_committee_decision\"",
+    "raw_credentialing_license": "\"screening\".\"main\".\"raw_credentialing_license\"",
+    "raw_credentialing_provider": "\"screening\".\"main\".\"raw_credentialing_provider\"",
+    "raw_registry_exclusion": "\"screening\".\"main\".\"raw_registry_exclusion\""
+   }
+  },
+  "snowflake": {
+   "adapter": "snowflake",
+   "models": {
+    "stg_credentialing__application": "SCREENING_ANALYTICS.staging.stg_credentialing__application",
+    "stg_credentialing__committee_decision": "SCREENING_ANALYTICS.staging.stg_credentialing__committee_decision",
+    "stg_credentialing__license": "SCREENING_ANALYTICS.staging.stg_credentialing__license",
+    "stg_credentialing__provider": "SCREENING_ANALYTICS.staging.stg_credentialing__provider",
+    "stg_registry__exclusion": "SCREENING_ANALYTICS.staging.stg_registry__exclusion"
+   },
+   "sources": {
+    "raw_credentialing_application": "SCREENING_RAW.credentialing.raw_credentialing_application",
+    "raw_credentialing_committee_decision": "SCREENING_RAW.credentialing.raw_credentialing_committee_decision",
+    "raw_credentialing_license": "SCREENING_RAW.credentialing.raw_credentialing_license",
+    "raw_credentialing_provider": "SCREENING_RAW.credentialing.raw_credentialing_provider",
+    "raw_registry_exclusion": "SCREENING_RAW.registry.raw_registry_exclusion"
+   }
+  }
+ },
+ "targets": [
+  "duckdb",
+  "snowflake"
+ ]
+}

@@ -1,0 +1,85 @@
+name: screening
+version: "1.0.0"
+config-version: 2
+profile: screening
+
+model-paths: ["models"]
+seed-paths: ["seeds"]
+macro-paths: ["macros"]
+test-paths: ["tests"]
+target-path: "target"
+
+# Two targets and neither is optional. snowflake is where this runs and duckdb
+# is the only one that can run at all without an account, so every claim about
+# what a model returns is made against duckdb and every claim about the SQL it
+# compiles to is made against snowflake.
+models:
+  screening:
+    staging:
+      +materialized: view
+      +schema: staging
+
+seeds:
+  screening:
+    # The seeds stand in for the tables the replication lands. They are small
+    # and hand built and their only job is to carry the column states that
+    # decide whether a staging model is right.
+    #
+    # Every text column is pinned and that is not tidiness. A seed column whose
+    # every value is empty gets typed as an integer, so a model that trims it
+    # fails to bind on a column the warehouse holds as text. An inferred type
+    # would also read the sentinel in the identifier column as a number, which
+    # is the defect these models exist to avoid.
+    +quote_columns: false
+    raw_credentialing_provider:
+      +column_types:
+        npi: varchar
+        last_name: varchar
+        first_name: varchar
+        middle_name: varchar
+        business_name: varchar
+        primary_specialty: varchar
+        provider_type: varchar
+        _fivetran_deleted: boolean
+        _fivetran_synced: timestamp
+    raw_credentialing_application:
+      +column_types:
+        application_type: varchar
+        status: varchar
+        decided_on: date
+        _fivetran_deleted: boolean
+        _fivetran_synced: timestamp
+    raw_credentialing_license:
+      +column_types:
+        state: varchar
+        license_number: varchar
+        status: varchar
+        _fivetran_deleted: boolean
+        _fivetran_synced: timestamp
+    raw_credentialing_committee_decision:
+      +column_types:
+        decision: varchar
+        effective_from: date
+        effective_to: date
+        _fivetran_deleted: boolean
+        _fivetran_synced: timestamp
+    raw_registry_exclusion:
+      +column_types:
+        lastname: varchar
+        firstname: varchar
+        midname: varchar
+        busname: varchar
+        general: varchar
+        specialty: varchar
+        upin: varchar
+        npi: varchar
+        dob: varchar
+        address: varchar
+        city: varchar
+        state: varchar
+        zip: varchar
+        excltype: varchar
+        excldate: varchar
+        reindate: varchar
+        waiverdate: varchar
+        wvrstate: varchar

@@ -1,0 +1,33 @@
+version: 2
+
+sources:
+  # Landed by the replication connector. The schema name is the connector's
+  # destination prefix, so it is the same string that appears in infra/fivetran.tf
+  # and a check compares the two rather than trusting them to agree.
+  - name: credentialing
+    # Named rather than taken from the target. The models are written to the
+    # analytics database and read from the raw one, so a source that follows
+    # the target reads the database it is about to write into.
+    database: "{{ target.database if target.type == 'duckdb' else var('raw_database', 'SCREENING_RAW') }}"
+    schema: "{{ 'main' if target.type == 'duckdb' else 'credentialing' }}"
+    description: The credentialing application, replicated from its own Postgres database.
+    tables:
+      - name: raw_credentialing_provider
+        description: One row per provider in the credentialing workflow.
+      - name: raw_credentialing_application
+        description: One row per credentialing application.
+      - name: raw_credentialing_license
+        description: State licences. A delete here removes the basis for a clearance.
+      - name: raw_credentialing_committee_decision
+        description: Committee outcomes. A delete here is a rescinded decision.
+
+  # Landed by the pipe from cloud storage rather than by the connector. Kept as
+  # a separate source because the two arrive by different routes and only one
+  # of them carries the replication marker columns.
+  - name: registry
+    database: "{{ target.database if target.type == 'duckdb' else var('raw_database', 'SCREENING_RAW') }}"
+    schema: "{{ 'main' if target.type == 'duckdb' else 'registry' }}"
+    description: Federal registry files, loaded from cloud storage.
+    tables:
+      - name: raw_registry_exclusion
+        description: The exclusion list as published. Its identifier column encodes absence as a value.

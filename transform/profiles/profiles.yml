@@ -1,0 +1,28 @@
+# Both targets are named here and neither carries a credential. The snowflake
+# target exists so the models can be parsed against that adapter, which
+# resolves the dispatch and the materialisation without opening a connection.
+# Anything that needs a connection runs against duckdb.
+screening:
+  target: duckdb
+  outputs:
+    duckdb:
+      type: duckdb
+      path: "{{ env_var('SCREENING_DUCKDB', 'target/screening.duckdb') }}"
+      schema: main
+      threads: 4
+
+    snowflake:
+      type: snowflake
+      account: "{{ env_var('SNOWFLAKE_ACCOUNT', 'none') }}"
+      user: "{{ env_var('SNOWFLAKE_USER', 'none') }}"
+      authenticator: snowflake_jwt
+      private_key_path: "{{ env_var('SNOWFLAKE_PRIVATE_KEY_PATH', '/dev/null') }}"
+      role: "{{ env_var('SNOWFLAKE_ROLE', 'SCREENING_TRANSFORM') }}"
+      warehouse: "{{ env_var('SNOWFLAKE_WAREHOUSE', 'SCREENING_TRANSFORM_WH') }}"
+      # The models are written here and the replication lands somewhere else.
+      # Two databases rather than one, because the role that transforms reads
+      # raw and writes analytics and a single database makes that separation
+      # unexpressible.
+      database: "{{ env_var('SNOWFLAKE_DATABASE', 'SCREENING_ANALYTICS') }}"
+      schema: STAGING
+      threads: 4

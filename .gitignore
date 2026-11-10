@@ -8,3 +8,6 @@ __pycache__/
 .terraform.lock.hcl
 terraform.tfstate
 terraform.tfstate.backup
+transform/target/
+transform/profiles/.user.yml
+transform/logs/

@@ -1,0 +1,17 @@
+# The transform toolchain. Separate from the other two files because the test
+# suite does not need it and the machine the suite usually runs on cannot
+# install it at all.
+#
+# Two targets and both adapters are pinned. The snowflake one is here so the
+# models can be parsed against that adapter with no account, which resolves the
+# dispatch and the materialisation without opening a connection. The duckdb one
+# is here because it is the only target that can actually run the models.
+dbt-core==1.9.4
+dbt-snowflake==1.9.2
+dbt-duckdb==1.9.2
+
+# Pinned below what pip resolves on its own. The newest release publishes no
+# wheel for the Python floor this repository declares, so taking the default
+# would retire that floor without anything saying so. Checked with pip download
+# against 3.10 rather than assumed.
+duckdb==1.5.6

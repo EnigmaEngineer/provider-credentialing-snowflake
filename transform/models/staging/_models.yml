@@ -1,0 +1,62 @@
+version: 2
+
+models:
+  - name: stg_credentialing__provider
+    description: >
+      Live providers from the credentialing workflow. The identifier is text
+      and its absence is published as a boolean beside it.
+    columns:
+      - name: provider_id
+        tests: [unique, not_null]
+      - name: npi_is_absent
+        tests:
+          - not_null
+          - accepted_values:
+              values: [true, false]
+              quote: false
+      - name: provider_type
+        tests:
+          - accepted_values:
+              values: ["individual", "organization"]
+
+  - name: stg_credentialing__application
+    description: Live credentialing applications, with the active statuses named once.
+    columns:
+      - name: application_id
+        tests: [unique, not_null]
+      - name: provider_id
+        tests: [not_null]
+      - name: is_active
+        tests: [not_null]
+
+  - name: stg_credentialing__license
+    description: Live state licences.
+    columns:
+      - name: license_id
+        tests: [unique, not_null]
+      - name: provider_id
+        tests: [not_null]
+
+  - name: stg_credentialing__committee_decision
+    description: >
+      Live committee decisions. A delete here is a rescinded outcome, which is
+      why the source table publishes its whole old row.
+    columns:
+      - name: decision_id
+        tests: [unique, not_null]
+      - name: decision
+        tests:
+          - accepted_values:
+              values: ["approved", "denied", "deferred"]
+
+  - name: stg_registry__exclusion
+    description: >
+      The exclusion list with its sentinel kept distinguishable. No row is
+      filtered here. This source arrives by pipe and carries no deletion marker.
+    columns:
+      - name: npi
+        tests: [not_null]
+      - name: npi_is_absent
+        tests: [not_null]
+      - name: is_individual
+        tests: [not_null]
