@@ -80,12 +80,13 @@ select
     state,
     exclusion_type,
     exclusion_date_raw,
+    -- Built by a macro rather than inline, because the matching model forms
+    -- the same key from a date column and the two have to agree character for
+    -- character. is_individual is still required here: a record with no
+    -- surname is not a person this key can identify.
     case
         when is_individual
-             and first_name is not null
-             and first_name <> ''
-             and date_of_birth_raw is not null
-        then last_name || '|' || first_name || '|' || date_of_birth_raw
+        then {{ fallback_key('last_name', 'first_name', 'date_of_birth_raw') }}
         else null
     end as fallback_key
 from flagged

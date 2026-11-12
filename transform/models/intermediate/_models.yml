@@ -1,0 +1,40 @@
+version: 2
+
+models:
+  - name: int_screening__match_candidate
+    description: >
+      One row per provider and exclusion record a tier matched them to. Pair
+      grained, because a provider grained answer cannot say which record a
+      tier reached and a tier that flags the right provider against the wrong
+      record looks correct on any count of providers.
+    columns:
+      - name: provider_id
+        tests: [not_null]
+      - name: tier
+        tests:
+          - not_null
+          - accepted_values:
+              values: ["tier1_identifier", "tier2_name_and_dob", "tier3_name_state"]
+      - name: tier_rank
+        tests:
+          - not_null
+          - accepted_values:
+              values: [1, 2, 3]
+              quote: false
+
+  - name: int_screening__provider_screening
+    description: >
+      One row per provider carrying the strongest tier that reached them. A
+      provider with no tier is one the platform clears with nobody looking,
+      which is the set worth counting.
+    columns:
+      - name: provider_id
+        tests: [unique, not_null]
+      - name: cleared_without_review
+        tests:
+          - not_null
+          - accepted_values:
+              values: [true, false]
+              quote: false
+      - name: records_matched
+        tests: [not_null]
