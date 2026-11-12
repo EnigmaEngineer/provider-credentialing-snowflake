@@ -20,6 +20,8 @@ MANIFESTS = {
     "credentialing": os.path.join(ROOT, "measurements", "credentialing.json"),
     "replication": os.path.join(ROOT, "measurements", "replication.json"),
     "targets": os.path.join(ROOT, "measurements", "targets.json"),
+    "matching": os.path.join(ROOT, "measurements", "matching.json"),
+    "agreement": os.path.join(ROOT, "measurements", "matching_agreement.json"),
 }
 
 # Table label in the README, then the manifest and the path within it.
@@ -56,6 +58,30 @@ PUBLISHED = (
     ("state licences", ("credentialing", "rows_loaded", "license")),
     ("primary source verifications", ("credentialing", "rows_loaded", "verification")),
     ("committee decisions", ("credentialing", "rows_loaded", "committee_decision")),
+    ("providers in the sample", ("matching", "state_planted", "queue", "providers")),
+    ("flagged by the identifier tier", ("matching", "state_planted", "tiers", "tier1_identifier", "flagged")),
+    ("flagged by the name and date of birth tier", ("matching", "state_planted", "tiers", "tier2_name_and_dob", "flagged")),
+    ("flagged by the name and state tier", ("matching", "state_planted", "tiers", "tier3_name_state", "flagged")),
+    ("providers cleared with nobody looking", ("matching", "state_planted", "tiers", "cascade", "cleared_without_review")),
+    ("excluded providers nothing flagged", ("matching", "state_planted", "tiers", "cascade", "excluded_and_cleared")),
+    ("providers compared", ("agreement", "providers")),
+    ("candidate pairs at the strongest tier", ("agreement", "sql_candidate_pairs_at_strongest_tier")),
+    ("pairs only in the SQL", ("agreement", "pairs_only_in_sql")),
+    ("pairs only in Python", ("agreement", "pairs_only_in_python")),
+    ("providers whose tier disagrees", ("agreement", "providers_whose_tier_disagrees")),
+)
+
+# The two arm table, which carries one label and two numbers per row, so the
+# single column reader above cannot address it.
+ARM_ROWS = (
+    ("state planted from the exclusion record", "state_planted"),
+    ("state drawn from the facilities", "state_from_facility"),
+)
+
+# Rates stated in prose. A rate has no table row and rounding it by hand is how
+# a figure stops matching its manifest, so each one is recomputed here.
+RATES = (
+    ("falls from 0.99 to 0.67", ("state_from_facility", "state_planted")),
 )
 
 # Figures stated in prose rather than in a table. A number in a sentence has no
@@ -316,3 +342,54 @@ def check_the_schema_is_not_the_configured_name_written_twice():
         for name, relation in sorted(answers[target]["models"].items()):
             doubled = "%s_%s" % (STAGING_SCHEMA, STAGING_SCHEMA)
             assert doubled not in relation, (target, name, relation)
+
+
+def check_the_two_arm_table_matches_the_manifest():
+    text = readme()
+    m = manifest("matching")
+    for label, arm in ARM_ROWS:
+        pattern = re.compile(
+            r"^\|\s*" + re.escape(label) + r"\s*\|\s*([0-9]+)\s*\|\s*([0-9]+)\s*\|\s*$", re.M
+        )
+        found = pattern.findall(text)
+        assert len(found) == 1, (label, found)
+        flagged, cleared = (int(v) for v in found[0])
+        assert flagged == m[arm]["tiers"]["tier3_name_state"]["flagged"], (label, flagged)
+        assert cleared == m[arm]["review"]["near_miss"]["cleared_with_nobody_looking"], (
+            label,
+            cleared,
+        )
+
+
+def check_the_prose_rates_are_the_measured_ones_rounded():
+    text = readme()
+    m = manifest("matching")
+    for needle, arms in RATES:
+        assert needle in text, needle
+        stated = re.findall(r"0\.[0-9]{2}", needle)
+        assert len(stated) == len(arms), (needle, stated)
+        for said, arm in zip(stated, arms):
+            real = m[arm]["tiers"]["cascade"]["provider_graded"]["precision"]
+            assert said == "%.2f" % real, (arm, said, real)
+
+
+def check_the_readme_says_the_review_tier_held_every_near_miss():
+    text = readme()
+    m = manifest("matching")
+    held = m["state_planted"]["review"]["near_miss"]["held_for_review"]
+    total = m["state_planted"]["review"]["near_miss"]["providers"]
+    assert "%d of %d in the planted" % (held, total) in text, (held, total)
+
+
+def check_the_readme_states_the_pair_disagreement_the_comparison_found():
+    # The number of pairs the first run disagreed on is not in any manifest,
+    # because the manifest holds the answer after the fix. It is stated in the
+    # README and in the changelog, and this check keeps the two figures in the
+    # sentence consistent with the committed pair count rather than with each
+    # other.
+    text = readme()
+    m = manifest("agreement")
+    pairs = m["sql_candidate_pairs_at_strongest_tier"]
+    assert "disagreed on 103 of" in text, "the README no longer states the first run's gap"
+    assert "the %d pairs" % pairs in text, pairs
+    assert m["pairs_only_in_sql"] == 0 and m["pairs_only_in_python"] == 0, m

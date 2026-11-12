@@ -165,6 +165,101 @@ does not know which of its providers are excluded. That is the question the
 warehouse is being built to answer, and a label column in the source would
 answer it for free and measure nothing.
 
+## Tiered matching, and what each tier can be graded on
+
+Three tiers, strongest first, and a provider is assigned to the first one that
+matches. The order is the design. It decides which queue a provider lands in
+and therefore whether a person has to look at them.
+
+| Tier | What it compares | What it may decide |
+|---|---|---|
+| tier1_identifier | the identifier on both sides | may clear or stop without a person |
+| tier2_name_and_dob | surname, given name, date of birth | goes to a person |
+| tier3_name_state | surname, given name, state | goes to a person |
+
+Measured against the planted sample. The answer key's positive class is "this
+provider is the excluded person". So the near miss bucket is a negative. Same
+name, and a date of birth two years and a day away. A different person.
+
+| Figure | Count |
+|---|---|
+| providers in the sample | 500 |
+| flagged by the identifier tier | 40 |
+| flagged by the name and date of birth tier | 60 |
+| flagged by the name and state tier | 50 |
+| providers cleared with nobody looking | 350 |
+| excluded providers nothing flagged | 0 |
+
+The two stronger tiers reach precision 1.00 and the cascade reaches recall
+1.00, and neither number is worth much. The sample was planted by the same
+repository that is being graded, so every provider those tiers can find was
+put there to be found. The number that carries information is the one that got
+worse.
+
+### The tier that justifies the design fired once in 500
+
+The name and state tier reads a state. The credentialing provider table has no
+state column. The state is on the licence, and the generator was drawing it
+from four facilities, so a provider planted against an exclusion record in
+California was given a licence in New York.
+
+Both arms are in `measurements/matching.json` and the control is the behaviour
+this repository shipped the day before.
+
+| Arm | Flagged by the name and state tier | Near misses cleared with nobody looking |
+|---|---|---|
+| state planted from the exclusion record | 50 | 0 |
+| state drawn from the facilities | 1 | 49 |
+
+Read the cascade's precision across those two rows. It falls from 0.99 to 0.67.
+The better figure belongs to the arm where the review tier reached one provider
+in five hundred, and where forty nine people who look like an excluded person
+were cleared with nobody looking. A precision figure read on its own pointed at
+the wrong design.
+
+An answer key planted on two fields cannot grade a tier that reads three. The
+state is planted now and `credentialing/generate.py` keeps the facility draw
+behind a flag so the arms stay comparable.
+
+### What a review tier has to be graded on
+
+Graded as a classifier for "is this the excluded person", the name and state
+tier scores zero precision and zero recall. Both are right and both are
+useless. Nothing it flags is the excluded person and everything whose date of
+birth agreed was already taken by the tier above it.
+
+The question it exists to answer is how many of the people who look like an
+excluded person it stopped from being cleared. That is 50 of 50 in the planted
+arm. The cost side is the providers who appear nowhere in
+the list and were sent to a person anyway. That is 0 here. The 0 is a property
+of the generator rather than of the tier. Its unrelated providers draw their
+surnames from a pool filtered against every surname in the file, so no name
+tier can reach them at all.
+
+### The same tiers in SQL, compared pair by pair
+
+The measurement runs in Python and the platform runs SQL, so both exist and
+both are compared. `int_screening__match_candidate` is pair grained for that
+reason, and the comparison is over the whole sample rather than over the seeds.
+
+| Figure | Count |
+|---|---|
+| providers compared | 500 |
+| candidate pairs at the strongest tier | 150 |
+| pairs only in the SQL | 0 |
+| pairs only in Python | 0 |
+| providers whose tier disagrees | 0 |
+
+That comparison is not decoration either. Its first run disagreed on 103 of
+the 150 pairs while agreeing on the tier for all 500 providers. The SQL was
+publishing the exclusion list's absent identifier sentinel, the character zero,
+in the column naming the record a match reached. Anything joining downstream on
+that column would have joined to every record that carried no identifier, which
+is the defect this whole repository is built around, in the column that
+publishes a match. The staging model is allowed to carry the sentinel with its
+flag beside it. A matching model's identifier column is an answer and not a
+transcription, and a macro now nulls it there. The seed suite passed throughout.
+
 ## Replication, and the setting that is not in any configuration
 
 The credentialing database reaches the raw layer through a replication
@@ -332,6 +427,15 @@ python3 -m pip install -r requirements.txt -r requirements-dev.txt
 python3 tests/run_all.py
 ```
 
+The matching measurement needs the downloaded exclusion list and no database.
+It regenerates the workflow in memory, so the grading does not wait on Postgres
+having loaded anything, and it falls back to the committed fixture when the
+download is absent.
+
+```
+python3 scripts/measure_matching.py
+```
+
 The transform project is a separate toolchain and a separate requirements file.
 It needs a server for the source database and neither the suite nor the readers
 need any of it.
@@ -374,9 +478,11 @@ marker and a sentinel identifier, which is a property rather than a volume, so
 the fixture size is the right size for it. Nothing here says how any of this
 behaves at the scale of the enrollment extract.
 
-The planted overlaps are the answer key for matching that does not exist yet.
-Their counts are a statement about what was generated and not a measurement of
-precision or recall, neither of which has been measured.
+The planted overlaps are the answer key and the matcher is graded against
+them. Both were written here, so every precision and recall figure above is a
+statement about a sample this repository built. The figure that survives that
+objection is the one that got worse when the generator was corrected, because
+nothing was tuned to make it worse.
 
 Nothing has been applied to Snowflake. The configuration is correct against the
 provider schema version it pins and unproven against an account. There is no
@@ -394,9 +500,17 @@ models are written against the weekly one and the full file is a larger input
 to the same code. That is an assumption about the layout and it has not been
 checked against the full file.
 
-The matching is not built. The counts above say what each tier can reach and
-say nothing about precision or recall, because neither has been measured and
-there is no labelled sample yet.
+The matching has no threshold and no fuzzy comparison in it. Every tier is an
+equality on columns that were cleaned first, which is why a near miss two years
+and a day away is refused rather than scored. A real screening platform needs
+an approximate name comparison and this one does not have one, so the review
+queue here is smaller than a production queue would be.
+
+The state tier reads a state that lives on the licence. A provider whose
+licence has not arrived yet, or whose licence row was deleted, cannot be
+reached by it at all. That is the same deletion that removes the basis for a
+clearance, and it removes the provider from the review tier in the same moment.
+Nothing here handles that yet.
 
 The pipe needs a notification integration that does not exist, so it would fail
 a plan for a second reason beyond the missing account.

@@ -1,0 +1,40 @@
+{
+ "compared": "pair grained, at each provider's strongest tier",
+ "engine": "duckdb 1.5.6 in the cloud container",
+ "exclusion_records": 84093,
+ "measured": [
+  "compared",
+  "engine",
+  "exclusion_records",
+  "pairs_only_in_python",
+  "pairs_only_in_sql",
+  "providers",
+  "providers_whose_tier_disagrees",
+  "python_cleared_without_review",
+  "python_pairs",
+  "python_tier_counts",
+  "sql_candidate_pairs_all_tiers",
+  "sql_candidate_pairs_at_strongest_tier",
+  "sql_cleared_without_review",
+  "sql_tier_counts"
+ ],
+ "pairs_only_in_python": 0,
+ "pairs_only_in_sql": 0,
+ "providers": 500,
+ "providers_whose_tier_disagrees": 0,
+ "python_cleared_without_review": 350,
+ "python_pairs": 150,
+ "python_tier_counts": {
+  "tier1_identifier": 40,
+  "tier2_name_and_dob": 60,
+  "tier3_name_state": 50
+ },
+ "sql_candidate_pairs_all_tiers": 210,
+ "sql_candidate_pairs_at_strongest_tier": 150,
+ "sql_cleared_without_review": 350,
+ "sql_tier_counts": {
+  "tier1_identifier": 40,
+  "tier2_name_and_dob": 60,
+  "tier3_name_state": 50
+ }
+}
