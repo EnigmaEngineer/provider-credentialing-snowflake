@@ -162,6 +162,35 @@ def exclusion_pools(rows):
     return sorted(with_identifier), sorted(with_key)
 
 
+def key_states(rows):
+    """The state each fallback key's records sit in, and how many disagree.
+
+    The planting needs this because the provider table carries no state. The
+    state is on the licence, and until today the generator drew it from the
+    four facilities, so a provider planted against an exclusion record in
+    California was given a licence in New York. A tier reading name and state
+    then missed it, and the number that came back was a property of the
+    facility draw rather than of the tier.
+
+    A key can sit on records in more than one state. The lowest state code is
+    taken so a given file always plants the same one, and the count of keys
+    that disagree is returned beside it, because a planted provider on such a
+    key can be matched to a record in a state it was not planted with.
+    """
+    seen = {}
+    for row in rows:
+        key = leie.tier2_key(row)
+        if key is None:
+            continue
+        state = (row.get("STATE") or "").strip().upper()
+        if not state:
+            continue
+        seen.setdefault(key, set()).add(state)
+    chosen = {key: min(states) for key, states in seen.items()}
+    spread = sum(1 for states in seen.values() if len(states) > 1)
+    return chosen, spread
+
+
 def _shift_birth(dob, days):
     """Move a date of birth far enough that no sane comparison calls it equal.
 
@@ -185,7 +214,7 @@ def _as_date(eight_digits):
         return None
 
 
-def generate(exclusion_rows, plan=None, seed=20261110):
+def generate(exclusion_rows, plan=None, seed=20261110, plant_state=True):
     """Build the whole workflow. Returns the tables and the labels.
 
     The return value is a dict of table name to list of row dicts, plus a
@@ -196,6 +225,16 @@ def generate(exclusion_rows, plan=None, seed=20261110):
     """
     plan = plan or Plan()
     rng = random.Random(seed)
+    # The control arm. With the state unplanted a planted provider keeps the
+    # licence state the facility draw gave it, which is what this generator did
+    # until 2026-11-12. It is kept rather than deleted so the name and state
+    # tier can be measured against a sample where nothing planted the field it
+    # reads. A tier that scores the same under both arms is a tier reading
+    # something other than the state.
+    if not plant_state:
+        seed_note = "state not planted"
+    else:
+        seed_note = "state planted from the exclusion record"
     # Read once into a list, because the rows are walked twice and the readers
     # in this repository yield rather than return. A generator handed here
     # would be empty on the second walk, the avoid list would come back empty,
@@ -217,17 +256,22 @@ def generate(exclusion_rows, plan=None, seed=20261110):
 
     providers = []
     labels = []
+    # The state the planting gave a provider, keyed by provider identifier. The
+    # licence loop below reads it.
+    planted_state = {}
     next_id = 1
 
     # Drawn without replacement. Two planted providers sharing one exclusion
     # record would make the recall denominator wrong, because the record is
     # found once and two providers claim it.
+    key_state, keys_spanning_states = key_states(exclusion_rows)
     picked_identifiers = rng.sample(with_identifier, plan.exact_identifier)
     picked_keys = rng.sample(with_key, plan.name_and_birth + plan.near_miss)
     match_keys = picked_keys[: plan.name_and_birth]
     miss_keys = picked_keys[plan.name_and_birth :]
 
-    def add(npi, last, first, dob, label, provider_type="individual", business=None):
+    def add(npi, last, first, dob, label, planted_against="", state=None,
+            provider_type="individual", business=None):
         nonlocal next_id
         created = EPOCH + datetime.timedelta(days=rng.randrange(0, 300))
         providers.append(
@@ -245,12 +289,31 @@ def generate(exclusion_rows, plan=None, seed=20261110):
                 "updated_at": created.isoformat() + "T09:00:00+00:00",
             }
         )
-        labels.append({"provider_id": next_id, "label": label})
+        # The planted record travels with the label. Without it a precision
+        # figure can only ask whether the right provider was flagged, and a
+        # tier that flags the right provider against the wrong record scores
+        # as correct. The value is the identifier or the pipe joined fallback
+        # key the row was built from, and it is empty for a provider that was
+        # planted against nothing.
+        labels.append(
+            {
+                "provider_id": next_id,
+                "label": label,
+                "planted_against": planted_against,
+            }
+        )
+        if state is not None and plant_state:
+            planted_state[next_id] = state
         next_id += 1
 
     # The identifier is the exclusion record's. The name is not, which is the
     # realistic case: the registry and the application disagree on spelling and
     # the identifier is the only thing they agree on.
+    #
+    # No state is planted here. The identifier tier is the only route to this
+    # provider and it reads no state, so a state taken from the exclusion
+    # record would change no answer anywhere. A function that produced one was
+    # written and then removed for that reason.
     for npi in picked_identifiers:
         add(
             npi,
@@ -258,12 +321,21 @@ def generate(exclusion_rows, plan=None, seed=20261110):
             rng.choice(GIVEN_NAMES),
             _as_date("19%02d%02d%02d" % (rng.randrange(50, 90), rng.randrange(1, 13), rng.randrange(1, 29))),
             EXACT_IDENTIFIER,
+            planted_against=npi,
         )
 
     # Name and date of birth copied whole, and no identifier at all. This is
     # the provider the fallback tier exists for.
     for last, first, dob in match_keys:
-        add(None, last, first, _as_date(dob), NAME_AND_BIRTH)
+        add(
+            None,
+            last,
+            first,
+            _as_date(dob),
+            NAME_AND_BIRTH,
+            planted_against="|".join((last, first, dob)),
+            state=key_state.get((last, first, dob)),
+        )
 
     # Same name, a date of birth two years and a day away. Anything that calls
     # this a match on a date comparison is matching on the name alone.
@@ -271,7 +343,19 @@ def generate(exclusion_rows, plan=None, seed=20261110):
         shifted = _shift_birth(dob, 731)
         if shifted is None:
             raise ValueError("cannot build a near miss from date of birth %r" % dob)
-        add(None, last, first, _as_date(shifted), NEAR_MISS)
+        # Planted against nothing on purpose. This provider is not the excluded
+        # person, so there is no pair for a match to be right about, and any
+        # tier reaching them has made a mistake even where a review is the
+        # right handling. The state is the exclusion record's, because a tier
+        # that cannot be reached cannot be measured.
+        add(
+            None,
+            last,
+            first,
+            _as_date(shifted),
+            NEAR_MISS,
+            state=key_state.get((last, first, dob)),
+        )
 
     # The providers that must not match. Their surnames are checked against
     # every surname in the exclusion list rather than against the two planting
@@ -314,11 +398,18 @@ def generate(exclusion_rows, plan=None, seed=20261110):
         )
 
         issued = submitted - datetime.timedelta(days=rng.randrange(400, 2000))
+        # The draw is made for every provider and then overridden for the
+        # planted ones. Keeping the draw is deliberate: the generated workflow
+        # has a committed manifest of row counts, and every number after this
+        # point in the sequence moves if a draw is skipped. A planted provider
+        # takes the state of the exclusion record it was built from, because
+        # the name and state tier cannot be measured on a state nobody planted.
+        licence_state = rng.choice(FACILITIES)[2]
         licenses.append(
             {
                 "license_id": pid,
                 "provider_id": pid,
-                "state": rng.choice(FACILITIES)[2],
+                "state": planted_state.get(pid, licence_state),
                 "license_number": "L%07d" % (rng.randrange(1, 9999999)),
                 "issued_on": issued.isoformat(),
                 "expires_on": (issued + datetime.timedelta(days=1095)).isoformat(),
@@ -355,6 +446,8 @@ def generate(exclusion_rows, plan=None, seed=20261110):
             )
 
     return {
+        "arm": seed_note,
+        "keys_spanning_more_than_one_state": keys_spanning_states,
         "tables": {
             "facility": facilities,
             "provider": providers,

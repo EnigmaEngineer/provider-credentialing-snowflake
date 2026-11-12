@@ -571,3 +571,139 @@ def check_the_avoid_list_covers_a_surname_no_tier_can_reach():
     assert beyond, "the fixture has no surname outside the planting pools, so this graded nothing"
     for surname in sorted(beyond):
         assert surname in listed, surname
+
+
+"""The planted answer key, added 2026-11-12.
+
+Two things the generator did not record until today. The exclusion record a
+provider was planted against, without which a precision figure can only grade
+the provider. And the state, which the name and state tier reads and which the
+facility draw had been deciding.
+"""
+
+
+def check_every_planted_provider_carries_the_record_it_was_planted_against():
+    rows = fixture_rows()
+    built = generate.generate(rows, plan=SMALL)
+    labels = {d["provider_id"]: d for d in built["labels"]}
+    providers = {p["provider_id"]: p for p in built["tables"]["provider"]}
+    for pid, label in labels.items():
+        kind = label["label"]
+        planted = label["planted_against"]
+        if kind == generate.EXACT_IDENTIFIER:
+            assert planted == providers[pid]["npi"], (pid, planted)
+        elif kind == generate.NAME_AND_BIRTH:
+            parts = planted.split("|")
+            assert len(parts) == 3, planted
+            assert parts[0] == providers[pid]["last_name"], (pid, planted)
+            assert parts[2] == providers[pid]["date_of_birth"].replace("-", ""), (pid, planted)
+        else:
+            # A near miss is not the excluded person and an unrelated provider
+            # is nobody, so neither has a record a match could be right about.
+            assert planted == "", (pid, kind, planted)
+
+
+def check_the_planted_record_is_one_the_exclusion_file_actually_carries():
+    # Derived from the file rather than asked of the generator. Asking the
+    # generator what it planted and then asserting it planted that passes
+    # however the planting is built.
+    rows = fixture_rows()
+    built = generate.generate(rows, plan=SMALL)
+    identifiers = set()
+    keys = set()
+    for row in rows:
+        if leie.classify_npi(row.get("NPI")) == leie.USABLE_NPI:
+            identifiers.add(row["NPI"].strip())
+        key = leie.tier2_key(row)
+        if key is not None:
+            keys.add("|".join(key))
+    for label in built["labels"]:
+        planted = label["planted_against"]
+        if not planted:
+            continue
+        assert planted in identifiers or planted in keys, planted
+
+
+def check_a_fallback_planted_provider_is_licensed_in_the_record_s_state():
+    rows = fixture_rows()
+    built = generate.generate(rows, plan=SMALL)
+    key_state, _spread = generate.key_states(rows)
+    labels = {d["provider_id"]: d["label"] for d in built["labels"]}
+    providers = {p["provider_id"]: p for p in built["tables"]["provider"]}
+    states = {row["provider_id"]: row["state"] for row in built["tables"]["license"]}
+    checked = 0
+    for pid, kind in labels.items():
+        provider = providers[pid]
+        if kind in (generate.NAME_AND_BIRTH, generate.NEAR_MISS):
+            wanted = None
+            for key, state in key_state.items():
+                if key[0] == provider["last_name"] and key[1] == provider["first_name"]:
+                    wanted = state
+                    break
+        else:
+            continue
+        if wanted is None:
+            continue
+        assert states[pid] == wanted, (pid, kind, states[pid], wanted)
+        checked += 1
+    assert checked > 0, "nothing was planted with a state, so this check graded nothing"
+
+
+def check_the_control_arm_puts_the_licence_back_in_a_facility_state():
+    rows = fixture_rows()
+    built = generate.generate(rows, plan=SMALL, plant_state=False)
+    facility_states = {state for _id, _name, state in generate.FACILITIES}
+    for row in built["tables"]["license"]:
+        assert row["state"] in facility_states, row
+
+
+def check_the_two_arms_agree_on_every_table_except_the_licence_state():
+    # The draw is still made in the planted arm so the rest of the generated
+    # workflow does not move. A row count that differs between the arms means a
+    # draw was skipped and the committed manifest no longer describes either.
+    rows = fixture_rows()
+    planted = generate.generate(rows, plan=SMALL, plant_state=True)
+    control = generate.generate(rows, plan=SMALL, plant_state=False)
+    for name, table in planted["tables"].items():
+        other = control["tables"][name]
+        assert len(table) == len(other), (name, len(table), len(other))
+        if name != "license":
+            assert table == other, name
+    differ = sum(
+        1
+        for a, b in zip(planted["tables"]["license"], control["tables"]["license"])
+        if a["state"] != b["state"]
+    )
+    assert differ > 0, "the arms produced identical licence states"
+    for a, b in zip(planted["tables"]["license"], control["tables"]["license"]):
+        assert a["license_number"] == b["license_number"], (a, b)
+        assert a["issued_on"] == b["issued_on"], (a, b)
+
+
+def check_a_key_on_records_in_two_states_takes_the_lowest_code():
+    # Three records and two keys. One key sits in two states and the other in
+    # one, so the count of keys that disagree is 1 rather than 2. With both
+    # keys spread the count is satisfied by a comparison that counts every key.
+    rows = []
+    for last, first, state in (
+        ("HOLLAND", "HESTER", "TX"),
+        ("HOLLAND", "HESTER", "AZ"),
+        ("GRANTLEY", "GARETH", "NC"),
+    ):
+        row = {name: "" for name in leie.COLUMNS}
+        row.update({"LASTNAME": last, "FIRSTNAME": first, "DOB": "19700214",
+                    "STATE": state, "NPI": "0"})
+        rows.append(row)
+    chosen, spread = generate.key_states(rows)
+    assert chosen[("HOLLAND", "HESTER", "19700214")] == "AZ", chosen
+    assert chosen[("GRANTLEY", "GARETH", "19700214")] == "NC", chosen
+    assert len(chosen) == 2, chosen
+    assert spread == 1, spread
+
+
+def check_a_record_with_no_state_contributes_no_state():
+    row = {name: "" for name in leie.COLUMNS}
+    row.update({"LASTNAME": "HOLLAND", "FIRSTNAME": "HESTER", "DOB": "19700214", "NPI": "0"})
+    chosen, spread = generate.key_states([row])
+    assert chosen == {}, chosen
+    assert spread == 0, spread

@@ -106,7 +106,9 @@ def main(argv=None):
     # The labels are the answer key for the matching that comes later. They are
     # written beside the data and never into it.
     with open(os.path.join(WORK, "labels.csv"), "w", newline="", encoding="utf-8") as fh:
-        writer = csv.DictWriter(fh, fieldnames=("provider_id", "label"))
+        writer = csv.DictWriter(
+            fh, fieldnames=("provider_id", "label", "planted_against")
+        )
         writer.writeheader()
         writer.writerows(built["labels"])
 
