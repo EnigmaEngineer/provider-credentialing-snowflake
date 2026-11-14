@@ -174,6 +174,46 @@ def match_provider(provider, index, state=None):
     return None, ()
 
 
+def match_every_tier(provider, index, state=None):
+    """Every pair every tier can form, rather than the strongest tier's pairs.
+
+    The cascade above answers which queue a provider lands in. This answers
+    what a reviewer working that decision can see, and they are different
+    questions. int_screening__match_candidate emits all three tiers and the
+    model's own comment says why: a second tier pair is still worth keeping
+    for somebody reviewing a first tier decision.
+
+    Added 2026-11-14. The access measurement built the candidate relation out
+    of match_provider and came back with four rows where the warehouse has
+    five, because one provider is reached by the second tier and the third.
+    Nothing in this module could produce the warehouse's answer, so the
+    Python side had only ever been able to reimplement the queue.
+
+    Returns a tuple of (tier, ordinals) for each tier that reaches the
+    provider, in tier order.
+    """
+    out = []
+    ident = provider_identifier(provider)
+    if ident is not None:
+        hits = index.by_identifier.get(ident)
+        if hits:
+            out.append((TIER1, tuple(hits)))
+
+    key = provider_name_and_dob(provider)
+    if key is not None:
+        hits = index.by_name_and_dob.get(key)
+        if hits:
+            out.append((TIER2, tuple(hits)))
+
+    name_state = provider_name_and_state(provider, state)
+    if name_state is not None:
+        hits = index.by_name_and_state.get(name_state)
+        if hits:
+            out.append((TIER3, tuple(hits)))
+
+    return tuple(out)
+
+
 def match_all(providers, index, states=None):
     """One result per provider, in the order the providers arrived.
 
