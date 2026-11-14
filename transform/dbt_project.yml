@@ -6,8 +6,19 @@ profile: screening
 model-paths: ["models"]
 seed-paths: ["seeds"]
 macro-paths: ["macros"]
+snapshot-paths: ["snapshots"]
 test-paths: ["tests"]
 target-path: "target"
+
+# The number the currency rule reads. It is here rather than inline in a model
+# because the rule is stated in SQL and again in Python and the two have to
+# agree on it.
+#
+# Thirty days because the exclusion list is republished monthly. A screening
+# older than one publication cycle was taken against a file that has since
+# been replaced.
+vars:
+  screening_window_days: 30
 
 # Two targets and neither is optional. snowflake is where this runs and duckdb
 # is the only one that can run at all without an account, so every claim about
@@ -21,6 +32,14 @@ models:
     intermediate:
       +materialized: view
       +schema: intermediate
+
+# A snapshot is the one thing here that keeps state between runs. Everything
+# else is rebuilt from the source every time, so a model that is wrong gets
+# fixed and re-run. A snapshot that recorded the wrong version recorded it, and
+# the only way back is to drop the table and lose the history with it.
+snapshots:
+  screening:
+    +target_schema: snapshots
 
 seeds:
   screening:
@@ -86,3 +105,12 @@ seeds:
         reindate: varchar
         waiverdate: varchar
         wvrstate: varchar
+    raw_screening_screening_event:
+      # Written by the screening cycle rather than replicated, so there are no
+      # marker columns on it. The digest is text and it is the file a screening
+      # was taken against, which is the second thing that can expire.
+      +column_types:
+        screened_on: date
+        exclusion_file_sha256: varchar
+        matched_tier: varchar
+        outcome: varchar
