@@ -38,3 +38,30 @@ models:
               quote: false
       - name: records_matched
         tests: [not_null]
+
+  - name: int_screening__screening_currency
+    description: >
+      One row per provider saying whether the screening on file still stands.
+      Three things retire one and only the first is the calendar: the window,
+      the file the screening was taken against, and a change to an attribute a
+      match was made on.
+    columns:
+      - name: provider_id
+        tests: [unique, not_null]
+      - name: is_active
+        tests:
+          - not_null
+          - accepted_values:
+              values: [true, false]
+              quote: false
+      - name: outside_window
+        tests: [not_null]
+      - name: screening_is_void
+        tests: [not_null]
+      - name: digests_on_the_latest_cycle
+        # More than one digest on the latest cycle date means two files were in
+        # use at once, and then the current one is whichever sorted first.
+        tests:
+          - accepted_values:
+              values: [1]
+              quote: false

@@ -60,3 +60,17 @@ models:
         tests: [not_null]
       - name: is_individual
         tests: [not_null]
+
+  - name: stg_screening__screening_event
+    description: >
+      What the screening cycle screened and against which published file. Append
+      only, and with no deletion marker because nothing replicates it.
+    columns:
+      - name: screening_id
+        tests: [unique, not_null]
+      - name: provider_id
+        tests: [not_null]
+      - name: screened_on
+        tests: [not_null]
+      - name: exclusion_file_sha256
+        tests: [not_null]

@@ -31,3 +31,19 @@ sources:
     tables:
       - name: raw_registry_exclusion
         description: The exclusion list as published. Its identifier column encodes absence as a value.
+
+  # The screening cycle's own record of what it did, landed in the raw database
+  # by the cycle that wrote it. Not replicated and not a registry file, so it
+  # carries neither the marker columns of the first source nor the published
+  # sentinels of the second.
+  #
+  # It is append only. A screening that happened is a fact about a file and a
+  # date, and correcting one by overwriting it would destroy the only evidence
+  # that an answer was ever given.
+  - name: screening
+    database: "{{ target.database if target.type == 'duckdb' else var('raw_database', 'SCREENING_RAW') }}"
+    schema: "{{ 'main' if target.type == 'duckdb' else 'screening' }}"
+    description: What the screening cycle screened, when, and against which published file.
+    tables:
+      - name: raw_screening_screening_event
+        description: One row per provider screened in one cycle. Names the exclusion file by digest.
