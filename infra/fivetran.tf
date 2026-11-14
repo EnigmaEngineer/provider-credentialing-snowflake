@@ -85,8 +85,8 @@ resource "fivetran_connector_schedule" "credentialing" {
   # Set rather than omitted. An omitted frequency takes the account default and
   # the screening cycle is monthly, so a connector syncing once a day is paying
   # for twenty nine syncs nobody reads.
-  sync_frequency = "1440"
-  schedule_type  = "manual"
+  sync_frequency  = "1440"
+  schedule_type   = "manual"
   daily_sync_time = "02:00"
 
   # False and written down. A connector left paused replicates nothing and

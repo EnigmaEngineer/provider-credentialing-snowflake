@@ -49,3 +49,28 @@ resource "snowflake_warehouse" "ci" {
   resource_monitor             = snowflake_resource_monitor.screening.name
   statement_timeout_in_seconds = 1800
 }
+
+# The reading roles get their own warehouse rather than the transforming one.
+# A reviewer opening the queue while the monthly cycle is running would queue
+# behind it on a shared warehouse, and the reason to separate them is that the
+# cycle is a batch and a review is somebody waiting.
+#
+# Two clusters here and one everywhere else. This is the only warehouse with
+# more than one person on it at a time, and a second cluster is what stops a
+# long query holding up a short one. The ceiling is two rather than more
+# because nothing has measured the concurrency and a number nobody measured
+# should be the smallest one that does the job.
+resource "snowflake_warehouse" "reporting" {
+  name           = "SCREENING_REPORT_WH"
+  warehouse_size = "XSMALL"
+  comment        = "The review queue and the counts over it. Interactive rather than batch."
+
+  auto_suspend = 60
+  auto_resume  = "true"
+
+  min_cluster_count = 1
+  max_cluster_count = 2
+
+  resource_monitor             = snowflake_resource_monitor.screening.name
+  statement_timeout_in_seconds = 600
+}
