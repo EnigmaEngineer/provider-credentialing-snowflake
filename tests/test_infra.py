@@ -452,3 +452,127 @@ def check_the_reader_counts_the_configuration_blocks_it_is_given():
             by_provider[prefix] = by_provider.get(prefix, 0) + 1
     assert by_provider == {"snowflake": 29, "fivetran": 5}, by_provider
     assert len([b for _n, b in entries if b.kind == "provider"]) == 1, entries
+
+
+# The reader's own transformation, graded character for character.
+#
+# Two checks above reach the escape branch and the double slash branch and then
+# assert the argument names the reader came out with. An off by one in either
+# branch changes the characters and leaves the names alone, so eighteen mutants
+# of this module survived a suite that was already exercising the lines they
+# sit on. What the function returns is the subject, so that is what these
+# compare.
+
+
+def check_stripping_a_line_leaves_an_escaped_quote_and_what_follows_it():
+    line = '  schema_name = "\\"D\\".\\"S\\" # not a comment"'
+    assert tfread.strip_comments(line) == line, tfread.strip_comments(line)
+
+
+def check_stripping_a_line_removes_a_double_slash_comment_and_keeps_a_lone_slash():
+    # The lone slash is the half that matters. A rule that breaks on any slash
+    # truncates an expression, and the argument name survives the truncation.
+    line = "  count = 4 / 2 // halved"
+    assert tfread.strip_comments(line) == "  count = 4 / 2 ", repr(tfread.strip_comments(line))
+
+
+def check_stripping_a_hash_comment_keeps_the_code_before_it():
+    line = '  name = "W" # the warehouse'
+    assert tfread.strip_comments(line) == '  name = "W" ', repr(tfread.strip_comments(line))
+
+
+def check_an_argument_opened_as_a_heredoc_inside_a_nested_block_is_recorded():
+    # It was recorded at the top level and nowhere else, so a credential
+    # written as a heredoc body one level in reached neither set.
+    text = '''resource "snowflake_pipe" "p" {
+  name = "P"
+
+  on_schema {
+    body = <<-SQL
+      copy into t from @s
+    SQL
+  }
+}
+'''
+    got = tfread.blocks(text)
+    assert len(got) == 1, [b.label for b in got]
+    assert got[0].args == {"name"}, got[0].args
+    assert got[0].nested == {"on_schema"}, got[0].nested
+    assert got[0].nested_args == {"body"}, got[0].nested_args
+
+
+def check_the_reader_recovers_when_a_nested_block_and_its_parent_close_together():
+    # Two levels closing on one line is not what the formatter writes and it is
+    # what a hand edited file carries. A scanner that does not reset on it
+    # attributes the next block's arguments to this one, or reaches for a block
+    # that is no longer open.
+    text = '''resource "snowflake_warehouse" "a" {
+  name = "A"
+
+  on_schema {
+    inner = 1 } }
+
+resource "snowflake_warehouse" "b" {
+  name = "B"
+}
+'''
+    got = tfread.blocks(text)
+    assert [b.label for b in got] == ["snowflake_warehouse.a", "snowflake_warehouse.b"], [
+        b.label for b in got
+    ]
+    assert got[0].args == {"name"}, got[0].args
+    assert got[0].nested_args == {"inner"}, got[0].nested_args
+    assert got[1].args == {"name"}, got[1].args
+
+
+MIXED_BLOCKS = '''provider "snowflake" {
+  account_name = "A"
+}
+
+resource "snowflake_warehouse" "w" {
+  name = "W"
+}
+
+resource "snowflake_database" "d" {
+  name = "D"
+}
+
+variable "x" {
+  type = string
+}
+'''
+
+
+def check_the_resource_filter_returns_resources_and_nothing_else():
+    got = tfread.resources(MIXED_BLOCKS)
+    assert [b.label for b in got] == ["snowflake_warehouse.w", "snowflake_database.d"], [
+        b.label for b in got
+    ]
+    assert {b.kind for b in got} == {"resource"}, {b.kind for b in got}
+
+
+def check_the_resource_filter_narrowed_to_a_type_returns_only_that_type():
+    got = tfread.resources(MIXED_BLOCKS, "snowflake_warehouse")
+    assert [b.label for b in got] == ["snowflake_warehouse.w"], [b.label for b in got]
+    none = tfread.resources(MIXED_BLOCKS, "snowflake_stage")
+    assert none == [], [b.label for b in none]
+
+
+def check_a_heredoc_opened_on_a_line_of_its_own_records_no_argument():
+    # Legal and the reader has to survive it. A heredoc inside a list opens on
+    # a line carrying no name at all, and a reader that reaches for the name
+    # anyway fails on the file rather than on the rule.
+    text = '''resource "snowflake_pipe" "p" {
+  name = "P"
+
+  statements = [
+    <<-SQL
+    copy into t from @s
+    SQL
+  ]
+}
+'''
+    got = tfread.blocks(text)
+    assert len(got) == 1, [b.label for b in got]
+    assert got[0].args == {"name", "statements"}, got[0].args
+    assert got[0].nested_args == set(), got[0].nested_args

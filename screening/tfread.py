@@ -95,10 +95,18 @@ def blocks(text):
         m = HEREDOC.search(line)
         if m:
             heredoc_tag = m.group(1)
-            if depth == 1 and current is not None:
-                am = ARG.match(line)
-                if am:
+            am = ARG.match(line)
+            if am and current is not None:
+                # A heredoc is where a body goes and a body is somewhere a
+                # credential can be written, so the name is recorded at
+                # whatever depth it was set at. It used to be recorded only at
+                # the top level, which meant an argument opened as a heredoc
+                # inside a nested block reached neither set and no rule about
+                # arguments that must not appear could see it.
+                if depth == 1:
                     current.args.add(am.group(1))
+                else:
+                    current.nested_args.add(am.group(1))
             continue
 
         if depth == 0:
