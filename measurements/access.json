@@ -1,0 +1,115 @@
+{
+ "measured": [
+  "recovery_at_full_scale",
+  "roles",
+  "seed_relations"
+ ],
+ "recovery_at_full_scale": {
+  "exclusion_file_sha256": "7483d47bc48734f7955095d51d13dd1111b11cc8a60f54ebe894806e6c293c03",
+  "exclusion_records": 84093,
+  "per_tier": {
+   "tier1_identifier": {
+    "matched_npi_recovers_the_identifier": 41,
+    "pairs": 41
+   },
+   "tier2_name_and_dob": {
+    "matched_fallback_key_recovers_the_identity": 61,
+    "pairs": 61
+   },
+   "tier3_name_state": {
+    "matched_fallback_key_recovers_the_name_only": 51,
+    "pairs": 51
+   }
+  },
+  "providers": 500
+ },
+ "roles": {
+  "SCREENING_ANALYST": {
+   "reads_every_row": true,
+   "relations": {
+    "match_candidate": {
+     "columns_in_the_relation": 6,
+     "columns_withheld": [
+      "matched_fallback_key",
+      "matched_npi"
+     ],
+     "columns_withheld_conditionally": [
+      "matched_fallback_key",
+      "matched_npi"
+     ],
+     "rows_in_the_relation": 5,
+     "rows_this_role_reads": 5,
+     "unscoped_rows_reached": 1
+    },
+    "review_queue": {
+     "columns_in_the_relation": 12,
+     "columns_withheld": [
+      "date_of_birth",
+      "first_name",
+      "last_name",
+      "npi"
+     ],
+     "columns_withheld_conditionally": [],
+     "rows_in_the_relation": 8,
+     "rows_this_role_reads": 8,
+     "unscoped_rows_reached": 4
+    }
+   }
+  },
+  "SCREENING_LOADER": {
+   "reads_every_row": true,
+   "relations": {}
+  },
+  "SCREENING_REVIEWER": {
+   "reads_every_row": false,
+   "relations": {
+    "match_candidate": {
+     "columns_in_the_relation": 6,
+     "columns_withheld": [],
+     "columns_withheld_conditionally": [],
+     "rows_in_the_relation": 5,
+     "rows_this_role_reads": 4,
+     "unscoped_rows_reached": 1
+    },
+    "review_queue": {
+     "columns_in_the_relation": 12,
+     "columns_withheld": [],
+     "columns_withheld_conditionally": [],
+     "rows_in_the_relation": 8,
+     "rows_this_role_reads": 7,
+     "unscoped_rows_reached": 4
+    }
+   }
+  },
+  "SCREENING_TRANSFORMER": {
+   "reads_every_row": true,
+   "relations": {
+    "match_candidate": {
+     "columns_in_the_relation": 6,
+     "columns_withheld": [],
+     "columns_withheld_conditionally": [],
+     "rows_in_the_relation": 5,
+     "rows_this_role_reads": 5,
+     "unscoped_rows_reached": 1
+    },
+    "review_queue": {
+     "columns_in_the_relation": 12,
+     "columns_withheld": [],
+     "columns_withheld_conditionally": [],
+     "rows_in_the_relation": 8,
+     "rows_this_role_reads": 8,
+     "unscoped_rows_reached": 4
+    }
+   }
+  }
+ },
+ "seed_relations": {
+  "match_candidate": {
+   "rows": 5
+  },
+  "review_queue": {
+   "rows": 8
+  }
+ },
+ "unscoped_rows_go_to_every_reviewer": true
+}
