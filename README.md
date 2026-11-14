@@ -451,6 +451,104 @@ one facility. The roles exist in `infra/roles.tf` and what each one can do is
 in `infra/grants.tf`, because a role is only a name until something is granted
 to it.
 
+## Who reads what, and what a redaction leaves behind
+
+Four roles. The loader writes raw and reads nothing in analytics. The
+transformer reads raw and writes analytics. The analyst counts the queue. The
+reviewer works it, which means deciding whether this provider is that excluded
+person.
+
+The obvious design masks the identifier, the name and the date of birth on the
+review queue. It leaves the pair grained candidate relation alone. It protects
+nobody who was matched.
+
+Both match joins are equalities on the columns the mask would hide. The first
+tier joins the provider identifier to the record identifier, so on a first tier
+row `matched_npi` is the provider's own identifier. The second tier forms its
+key out of the surname, the given name and the date of birth with pipes between
+them, so `matched_fallback_key` on a second tier row is all three values. The
+third tier joins on the surname and the given name only, and publishes the same
+key, so it gives back two of the three. Nothing in either column name says any
+of this.
+
+Measured over the whole sample in `measurements/access.json`:
+
+| pairs the identifier tier formed | 41 |
+| pairs where the matched identifier is the provider's own | 41 |
+| pairs the name and date of birth tier formed | 61 |
+| pairs where the matched key is the provider's whole identity | 61 |
+| pairs the name and state tier formed | 51 |
+| pairs where the matched key is the provider's name | 51 |
+
+Every pair, in all three tiers. The withheld set is therefore the closure over
+every column set that recovers the quantity, which is what
+`screening/access.py` declares and what `tests/test_access.py` grades in both
+directions against the measurement. A recovery the measurement finds and the
+design does not declare is a column reading whole that nobody meant to publish.
+A recovery the design declares and the measurement never found is a rule
+resting on somebody's reading of a join.
+
+The third tier was the second kind. The condition had been written as the
+second tier alone, which is what reading the join that forms the key gives you,
+and the measurement is what put the third tier in it.
+
+### A per column mask cannot answer a per row question
+
+`matched_npi` is the provider's own identifier on a first tier row and a
+different person's record on the others, and a reviewer needs it on the others.
+Masking the column outright is correct and costs the reader the record on every
+row. The provider's conditional masking form takes the deciding column as a
+second argument through `using` at the attachment, so the answer can be per
+row. That field is described in `terraform providers schema -json` and its
+flags say only that it is optional.
+
+### What the provider can and cannot attach a policy to
+
+A row access policy attaches to a view or to an iceberg table in the
+`snowflakedb` Snowflake provider at 2.23.0 and to nothing else. `snowflake_table` carries
+no `row_access_policy` block at any nesting level. So the raw layer cannot be
+row filtered declaratively at all, and the relations the models build are dbt
+views that dbt creates and drops on every run.
+
+Terraform declaring a view dbt also declares is two owners for one object. So
+the models stay granted to the transformer alone, and the reading roles are
+granted on secure views in a `REVIEW` schema that Terraform owns. That is one
+more layer than the obvious design and it is the only one that is expressible.
+
+### A provider with no facility
+
+The reviewer's row filter is keyed on the facility, which comes from the active
+application. A provider with no active application has no facility, so a filter
+with only the assigned branch reaches them from no reviewer at all. That is the
+same disappearance as the state tier being unable to reach a provider with no
+licence.
+
+An unscoped row goes to every reviewer instead. The cost is duplicated work on
+a small bucket and the count is published rather than discovered. The cost of
+the other answer is a provider screened against nothing who is never looked at,
+and from the outside an empty queue and a queue nobody can see are the same
+thing.
+
+### What each role sees, on the committed fixture
+
+| rows in the review queue | 8 |
+| rows the reviewer reads in the review queue | 7 |
+| rows in the candidate relation | 5 |
+| rows the reviewer reads in the candidate relation | 4 |
+| queue rows with no facility | 4 |
+
+The analyst reads every row and no names. The reviewer reads every name and
+fewer rows, which is one exemption going each way, and a design treating
+exemption as one switch would have got one of them wrong.
+
+Two arms, because the first one was a reimplementation.
+`scripts/measure_access.py` builds the relations in Python and
+`scripts/measure_access_warehouse.py` runs the view statements against the
+models in duckdb. The Python arm came back with four
+candidate rows where the warehouse has five, because it built the relation out
+of the tier cascade and the model unions all three tiers. The suite compares
+the two arms row by row now, over the columns the warehouse manifest names.
+
 ## The gate on the configuration
 
 `terraform validate` reads a value and asks whether the provider accepts it.
@@ -511,6 +609,16 @@ measurement that reads it.
 
 ```
 python3 scripts/measure_history.py --database /tmp/history.duckdb
+```
+
+The access measurement has two arms and they run in different places. The
+Python one needs the download and no database. The warehouse one reads the
+database a build left behind, so it runs after a build and only where duckdb is
+installed.
+
+```
+python3 scripts/measure_access.py
+python3 scripts/measure_access_warehouse.py --database transform/target/screening.duckdb
 ```
 
 The suite needs no downloads. Every check reads a committed fixture, and
@@ -585,3 +693,28 @@ strategy compares a column list on every row of every run.
 
 The pipe needs a notification integration that does not exist, so it would fail
 a plan for a second reason beyond the missing account.
+
+No masking policy and no row access policy has ever been applied or evaluated.
+Everything above about what each role sees is the design being applied to the
+relations by code in this repository, and the configuration being graded
+against that design. A policy body is SQL inside a string that `terraform
+validate` does not read at all, so none of these bodies has been parsed by
+anything, let alone run by Snowflake.
+
+The reviewer to facility mapping is a table this configuration creates and
+never populates, because a reviewer joining is an operational event rather than
+a configuration change. Until somebody loads a row, every reviewer reads the
+unscoped rows and nothing else. That is a visibly empty queue rather than a
+silently full one, which is the right way round, and it is still a bootstrap
+state nothing here handles.
+
+The row filter is graded on the committed nine row fixture. What it measures is
+that the predicate separates three facilities and an unassigned bucket, which
+is a property rather than a volume. Nothing here says what the policy costs on
+a queue with a million rows in it, and a row access policy is evaluated on
+every query against the relation.
+
+The warehouse arm runs under duckdb and the policies are written for Snowflake.
+The relation contents are engine independent and the enforcement is not, so the
+arm grades what the views select and nothing about what the policies would do
+to it.

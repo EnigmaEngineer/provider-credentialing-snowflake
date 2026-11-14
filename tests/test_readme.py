@@ -25,6 +25,8 @@ MANIFESTS = {
     "matching": os.path.join(ROOT, "measurements", "matching.json"),
     "agreement": os.path.join(ROOT, "measurements", "matching_agreement.json"),
     "history": os.path.join(ROOT, "measurements", "history.json"),
+    "access": os.path.join(ROOT, "measurements", "access.json"),
+    "access_warehouse": os.path.join(ROOT, "measurements", "access_warehouse.json"),
 }
 
 # Table label in the README, then the manifest and the path within it.
@@ -72,6 +74,39 @@ PUBLISHED = (
     ("pairs only in the SQL", ("agreement", "pairs_only_in_sql")),
     ("pairs only in Python", ("agreement", "pairs_only_in_python")),
     ("providers whose tier disagrees", ("agreement", "providers_whose_tier_disagrees")),
+    # The access figures. Each recovery count sits beside the pair count for
+    # its tier, because a recovery count on its own says nothing: the claim is
+    # that the two are equal on every tier.
+    ("pairs the identifier tier formed",
+     ("access", "recovery_at_full_scale", "per_tier", "tier1_identifier", "pairs")),
+    ("pairs where the matched identifier is the provider's own",
+     ("access", "recovery_at_full_scale", "per_tier", "tier1_identifier",
+      "matched_npi_recovers_the_identifier")),
+    ("pairs the name and date of birth tier formed",
+     ("access", "recovery_at_full_scale", "per_tier", "tier2_name_and_dob", "pairs")),
+    ("pairs where the matched key is the provider's whole identity",
+     ("access", "recovery_at_full_scale", "per_tier", "tier2_name_and_dob",
+      "matched_fallback_key_recovers_the_identity")),
+    ("pairs the name and state tier formed",
+     ("access", "recovery_at_full_scale", "per_tier", "tier3_name_state", "pairs")),
+    ("pairs where the matched key is the provider's name",
+     ("access", "recovery_at_full_scale", "per_tier", "tier3_name_state",
+      "matched_fallback_key_recovers_the_name_only")),
+    # What each role sees. The relation sizes come from the warehouse arm
+    # rather than the Python one, because the warehouse is the thing being
+    # described and the Python arm is the comparison.
+    ("rows in the review queue", ("access_warehouse", "relations", "review_queue", "rows")),
+    ("rows the reviewer reads in the review queue",
+     ("access", "roles", "SCREENING_REVIEWER", "relations", "review_queue",
+      "rows_this_role_reads")),
+    ("rows in the candidate relation",
+     ("access_warehouse", "relations", "match_candidate", "rows")),
+    ("rows the reviewer reads in the candidate relation",
+     ("access", "roles", "SCREENING_REVIEWER", "relations", "match_candidate",
+      "rows_this_role_reads")),
+    ("queue rows with no facility",
+     ("access", "roles", "SCREENING_ANALYST", "relations", "review_queue",
+      "unscoped_rows_reached")),
 )
 
 # The two arm table, which carries one label and two numbers per row, so the
