@@ -112,6 +112,13 @@ def check_the_pooling_the_reader_does_is_the_only_difference():
         # credential depends on it, because a credential would be written one
         # level in.
         "fivetran_connector_schema_config.credentialing": ["table"],
+        # Added 2026-11-14. A view attaches a masking policy inside a column
+        # block, so masking_policy arrives one level in and the reader reports
+        # it at the top of the nested set. The pooling is what the rule about
+        # a conditional policy and its deciding column depends on, because
+        # using is set beside the policy name rather than on the view.
+        "snowflake_view.review_queue": ["masking_policy"],
+        "snowflake_view.match_candidate": ["masking_policy"],
     }, pooled
 
 

@@ -437,12 +437,28 @@ resource "b" "two" {
 
 
 def check_the_reader_counts_the_configuration_blocks_it_is_given():
-    # Pinned against the real directory, so a reader that starts dropping
-    # blocks fails here rather than quietly shrinking what the rules grade.
+    """A reader that starts dropping blocks quietly shrinks what the rules grade.
+
+    The counts used to be typed into this check, at 34 resources and 18
+    variables and a split of 29 and 5 by provider. All four had to be retyped
+    on 2026-11-14 when the access configuration landed, which is the tell that
+    a check is carrying a copy of something the repository already knows. A
+    typed count also passes for the wrong reason: it agrees with a reader that
+    drops one block on the day somebody adds one.
+
+    So the count comes from the second parser instead. The question this asks
+    is whether the two readings have the same size, and neither side of that
+    is a number anybody maintains.
+    """
     entries = tfread.read_dir(INFRA)
-    resources = [b for _n, b in entries if b.kind == "resource"]
-    assert len(resources) == 34, len(resources)
-    assert len([b for _n, b in entries if b.kind == "variable"]) == 18, entries
+    independent = hcl2_blocks(INFRA)
+
+    for kind in ("resource", "variable", "provider"):
+        mine = len([b for _n, b in entries if b.kind == kind])
+        theirs = independent[kind]
+        assert mine == theirs, (kind, mine, theirs)
+        assert mine > 0, kind
+
     # Split by provider, because one count over two providers hides a reader
     # that drops every block of one of them.
     by_provider = {}
@@ -450,8 +466,33 @@ def check_the_reader_counts_the_configuration_blocks_it_is_given():
         if block.kind == "resource" and block.labels:
             prefix = block.labels[0].split("_")[0]
             by_provider[prefix] = by_provider.get(prefix, 0) + 1
-    assert by_provider == {"snowflake": 29, "fivetran": 5}, by_provider
-    assert len([b for _n, b in entries if b.kind == "provider"]) == 1, entries
+    assert set(by_provider) == {"snowflake", "fivetran"}, by_provider
+    assert sum(by_provider.values()) == independent["resource"], by_provider
+
+
+def hcl2_blocks(path):
+    """How many top level blocks of each kind a second parser finds.
+
+    Lives here rather than in the agreement module because this is the only
+    check that needs a count. python-hcl2 returns one list per block kind with
+    one dictionary per block, keyed by label, so a kind with two blocks of the
+    same first label arrives as two entries in the list.
+    """
+    import hcl2
+
+    counts = {"resource": 0, "variable": 0, "provider": 0}
+    for name in sorted(os.listdir(path)):
+        if not name.endswith(".tf"):
+            continue
+        with open(os.path.join(path, name), encoding="utf-8") as handle:
+            parsed = hcl2.load(handle)
+        for kind in counts:
+            for entry in parsed.get(kind, []):
+                if kind == "resource":
+                    counts[kind] += sum(len(v) for v in entry.values())
+                else:
+                    counts[kind] += len(entry)
+    return counts
 
 
 # The reader's own transformation, graded character for character.

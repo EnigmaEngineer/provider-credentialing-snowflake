@@ -21,6 +21,10 @@ ARG = re.compile(r"^([a-z_][a-z0-9_]*)\s*=")
 NESTED = re.compile(r"^([a-z_][a-z0-9_]*)\s*\{\s*$")
 HEADER = re.compile(r'^(resource|provider|variable|terraform|output|data)\b(.*)\{\s*$')
 LABEL = re.compile(r'"([^"]*)"')
+# An unquoted reference to another resource in this configuration. The kind
+# sits inside quotes on a resource header and outside them in a reference, so
+# this matches the second and not the first.
+REFERENCE = re.compile(r"(?<![\"\w])((?:snowflake|fivetran)_[a-z0-9_]+)\.([a-z0-9_]+)")
 
 
 @dataclass
@@ -33,10 +37,33 @@ class Block:
     # argument that must never appear has to reach these, because a nested
     # block is exactly where a credential would be written.
     nested_args: set = field(default_factory=set)
+    # Addresses of other resources this block refers to, as kind.name. A rule
+    # about a policy that is attached to nothing needs these, because the
+    # attachment is a reference and not an argument name.
+    refs: set = field(default_factory=set)
+    # How many times each nested block name appears. The set above says a
+    # block is present and a rule about a policy taking two arguments needs
+    # to know there are two.
+    nested_counts: dict = field(default_factory=dict)
+    # And how many times each argument name is set below the top level. A
+    # view attaches one conditional policy per column, so a rule asking
+    # whether every one of them was given its deciding column is counting.
+    nested_arg_counts: dict = field(default_factory=dict)
 
     @property
     def label(self):
         return ".".join(self.labels)
+
+    @property
+    def address(self):
+        """resource kind and name, the way a reference to it is spelled."""
+        return ".".join(self.labels[:2])
+
+    def count_nested(self, name):
+        return self.nested_counts.get(name, 0)
+
+    def count_nested_arg(self, name):
+        return self.nested_arg_counts.get(name, 0)
 
 
 def _strip_comment(line):
@@ -92,6 +119,10 @@ def blocks(text):
         if not line:
             continue
 
+        if current is not None:
+            for kind, name in REFERENCE.findall(line):
+                current.refs.add("%s.%s" % (kind, name))
+
         m = HEREDOC.search(line)
         if m:
             heredoc_tag = m.group(1)
@@ -121,6 +152,7 @@ def blocks(text):
             nm = NESTED.match(line)
             if nm:
                 current.nested.add(nm.group(1))
+                current.nested_counts[nm.group(1)] = current.count_nested(nm.group(1)) + 1
                 depth = 2
                 continue
             am = ARG.match(line)
@@ -135,9 +167,11 @@ def blocks(text):
         am = ARG.match(line)
         if am and current is not None:
             current.nested_args.add(am.group(1))
+            current.nested_arg_counts[am.group(1)] = current.count_nested_arg(am.group(1)) + 1
         nm = NESTED.match(line)
         if nm and current is not None:
             current.nested.add(nm.group(1))
+            current.nested_counts[nm.group(1)] = current.count_nested(nm.group(1)) + 1
         depth += line.count("{") - line.count("}")
         if depth < 1:
             depth = 0
