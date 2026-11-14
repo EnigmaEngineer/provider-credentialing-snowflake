@@ -134,6 +134,177 @@ def provider_names_who_it_connects_as(entries):
     return out
 
 
+
+
+# The access rules, added 2026-11-14. Same shape as the ones above and the
+# subject moved, because a policy is the one kind of object in this
+# configuration that does nothing at all until something else points at it.
+#
+# terraform validate accepted a masking policy attached to no column and a row
+# access policy attached to no relation. Both are complete resources with
+# every required argument set. They would be created in the account, they
+# would appear in SHOW MASKING POLICIES, and they would filter nothing.
+
+
+def _referenced_anywhere(entries):
+    """Every resource address that some other block refers to."""
+    out = set()
+    for _name, b in entries:
+        out.update(b.refs)
+    return out
+
+
+def a_masking_policy_is_attached_to_a_column(entries):
+    """A policy nothing points at is a policy that masks nothing.
+
+    The attachment is a reference rather than an argument, so no rule reading
+    argument names can see this and neither can validate.
+    """
+    out = []
+    referenced = _referenced_anywhere(entries)
+    for name, b in _resources(entries, "snowflake_masking_policy"):
+        if b.address not in referenced:
+            out.append(
+                "%s %s is referenced by nothing, so it is created and masks no column"
+                % (name, b.label)
+            )
+    return out
+
+
+def a_row_access_policy_is_attached_to_a_relation(entries):
+    out = []
+    referenced = _referenced_anywhere(entries)
+    for name, b in _resources(entries, "snowflake_row_access_policy"):
+        if b.address not in referenced:
+            out.append(
+                "%s %s is referenced by nothing, so it is created and filters no rows"
+                % (name, b.label)
+            )
+    return out
+
+
+def a_view_the_reading_roles_use_filters_its_rows(entries):
+    """A view in the enforcement schema with no row filter on it.
+
+    This is the rule the grant comment in grants.tf rests on. The reading
+    roles are granted on named views in one schema, and the schema's whole
+    purpose is that what lands in it is filtered. A view added later with no
+    row_access_policy block is readable in full and nothing else complains.
+    """
+    out = []
+    for name, b in _resources(entries, "snowflake_view"):
+        if "row_access_policy" not in b.nested:
+            out.append(
+                "%s %s names no row_access_policy, so every row reaches every role granted on it"
+                % (name, b.label)
+            )
+    return out
+
+
+def a_view_the_reading_roles_use_is_secure(entries):
+    """is_secure is optional, and a view without it publishes its own definition.
+
+    The definition is the lesser half. A view that is not secure lets the
+    optimiser push a predicate past the filter, so a row the policy removed
+    can be inferred from which queries come back empty.
+    """
+    out = []
+    for name, b in _resources(entries, "snowflake_view"):
+        if "is_secure" not in b.args:
+            out.append(
+                "%s %s names no is_secure, so it defaults to a view whose definition is readable"
+                % (name, b.label)
+            )
+    return out
+
+
+def a_conditional_masking_policy_is_given_its_deciding_column(entries):
+    """A policy taking two arguments, attached without the second one.
+
+    A masking policy with one argument reads the column it masks. One with two
+    reads the column it masks and the column that decides, and the second one
+    arrives through using at the attachment rather than at the policy. Attach
+    it without using and Snowflake has a policy whose body references an
+    argument nothing passes.
+
+    This counts rather than checking presence. A view attaching two
+    conditional policies and one using clause has one column unguarded, and
+    the count is the only cheap way to see it.
+    """
+    out = []
+    conditional = {
+        b.address
+        for _name, b in _resources(entries, "snowflake_masking_policy")
+        if b.count_nested("argument") > 1
+    }
+    for name, b in _resources(entries, "snowflake_view"):
+        wanted = len(conditional & b.refs)
+        given = b.count_nested_arg("using")
+        if given < wanted:
+            out.append(
+                "%s %s attaches %d conditional masking policies and sets using %d times"
+                % (name, b.label, wanted, given)
+            )
+    return out
+
+
+def the_row_filter_mapping_is_not_granted_to_the_roles_it_filters(entries):
+    """A reviewer who can read the assignment mapping reads everybody's assignment.
+
+    The one rule here that fires on something being present. It belongs with
+    the others because the reason the grant gets written is the same absence
+    the rest of them are about: a policy body queries a table, so the obvious
+    move is to grant the querying role select on it. Snowflake evaluates the
+    expression as the policy owner, so the grant buys nothing and widens what
+    a reviewer can read to every other reviewer's assignment.
+
+    The rule reads the mapping table by name rather than by a pattern. A
+    second mapping table would need adding here, and a list of tables that
+    must not be granted is the blocklist shape, so it is scoped to the one
+    table whose contents are about people.
+    """
+    out = []
+    mapping = "snowflake_table.review_assignment"
+    filtered = ("snowflake_account_role.reviewer", "snowflake_account_role.analyst")
+    for name, b in _resources(entries, "snowflake_grant_privileges_to_account_role"):
+        if mapping not in b.refs:
+            continue
+        for role in filtered:
+            if role in b.refs:
+                out.append(
+                    "%s %s grants %s on the row filter mapping, so it reads every "
+                    "assignment and not only its own" % (name, b.label, role)
+                )
+    return out
+
+
+def a_role_that_reads_has_a_warehouse(entries):
+    """A role granted SELECT and no warehouse cannot run the query.
+
+    Found by writing this rule. SCREENING_ANALYST and SCREENING_REVIEWER held
+    usage on the analytics database, no object grant anywhere and no
+    warehouse, for four days, while the comments on both roles described what
+    each of them sees.
+    """
+    out = []
+    reads = set()
+    has_warehouse = set()
+    for _name, b in _resources(entries, "snowflake_grant_privileges_to_account_role"):
+        role = None
+        for ref in b.refs:
+            if ref.startswith("snowflake_account_role."):
+                role = ref
+        if role is None:
+            continue
+        if any(r.startswith("snowflake_warehouse.") for r in b.refs):
+            has_warehouse.add(role)
+        elif "on_schema_object" in b.nested:
+            reads.add(role)
+    for role in sorted(reads - has_warehouse):
+        out.append("%s is granted on an object and no warehouse, so it cannot run a statement" % role)
+    return out
+
+
 RULES = (
     warehouse_suspends_itself,
     warehouse_has_a_credit_ceiling,
@@ -145,6 +316,13 @@ RULES = (
     grant_names_what_it_grants,
     file_format_decides_its_own_encoding,
     provider_names_who_it_connects_as,
+    a_masking_policy_is_attached_to_a_column,
+    a_row_access_policy_is_attached_to_a_relation,
+    a_view_the_reading_roles_use_filters_its_rows,
+    a_view_the_reading_roles_use_is_secure,
+    a_conditional_masking_policy_is_given_its_deciding_column,
+    the_row_filter_mapping_is_not_granted_to_the_roles_it_filters,
+    a_role_that_reads_has_a_warehouse,
 )
 
 
