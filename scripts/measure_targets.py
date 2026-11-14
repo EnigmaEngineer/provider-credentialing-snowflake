@@ -52,13 +52,22 @@ def parse_one(target):
 
 
 def resolved(manifest):
-    out = {"adapter": manifest["metadata"]["adapter_type"], "sources": {}, "models": {}}
+    out = {
+        "adapter": manifest["metadata"]["adapter_type"],
+        "sources": {},
+        "models": {},
+        # Snapshots resolve into a schema of their own and they are the one
+        # thing here that keeps state, so a snapshot pointed at the wrong
+        # database writes history nothing will ever read again.
+        "snapshots": {},
+    }
     for key, node in sorted(manifest["sources"].items()):
         out["sources"][node["name"]] = node["relation_name"]
     for key, node in sorted(manifest["nodes"].items()):
-        if node["resource_type"] != "model":
-            continue
-        out["models"][node["name"]] = node["relation_name"]
+        if node["resource_type"] == "model":
+            out["models"][node["name"]] = node["relation_name"]
+        elif node["resource_type"] == "snapshot":
+            out["snapshots"][node["name"]] = node["relation_name"]
     return out
 
 
@@ -79,7 +88,7 @@ def main(argv=None):
     # one of the targets did not resolve, which is what reading a stale
     # manifest looks like.
     agreeing = []
-    for kind in ("sources", "models"):
+    for kind in ("sources", "models", "snapshots"):
         for name in sorted(answers[TARGETS[0]][kind]):
             first = answers[TARGETS[0]][kind][name]
             second = answers[TARGETS[1]][kind].get(name)

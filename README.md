@@ -260,6 +260,61 @@ publishes a match. The staging model is allowed to carry the sentinel with its
 flag beside it. A matching model's identifier column is an answer and not a
 transcription, and a macro now nulls it there. The seed suite passed throughout.
 
+## Attribute history, and what a screening is still worth
+
+A screening answer is only as current as the attributes it read. The
+credentialing application overwrites a provider in place, so once a surname or
+a date of birth has moved there is nothing left to say what the matcher
+compared against. Two snapshots in `transform/snapshots/` keep that history.
+One holds the four provider columns the tiers read. One holds the licence,
+because the state the third tier reads lives there rather than on the provider.
+
+`int_screening__screening_currency` puts the three ways a screening retires in
+one place. The window, which is thirty days because the exclusion list is
+republished monthly. The file, because a cycle re-run against an old download
+produces screenings dated today against a digest that has been replaced. And
+the attributes, which is the one that needs history to see at all.
+
+Three checks read that model. The one that would stop a release is
+`assert_no_active_provider_is_outside_the_screening_window`, and a provider
+nobody has ever screened fails it, which a rule written as a date subtraction
+quietly passes.
+
+### The strategy that records the wrong changes
+
+The cheaper snapshot strategy trusts the application's own `updated_at`. Both
+strategies run over the same table and the same three changes in
+`scripts/measure_history.py`, so the difference is measured rather than argued.
+
+| Strategy | Recorded a new version for |
+|---|---|
+| check, on the columns a tier reads | 1, 5 |
+| timestamp, on the application's clock | 3, 5 |
+
+Providers 1 and 5 are the two whose matched attributes moved. The timestamp arm
+missed provider 1, whose surname changed without the clock moving, which is
+what a direct update or an absent trigger looks like. It recorded provider 3
+instead, where the column that moved was a specialty no tier reads. The cheaper
+strategy got both directions wrong at once on a three row change set.
+
+Before the changes no check failed. After them exactly one did, and it was
+`assert_no_active_provider_was_screened_before_their_attributes_moved`.
+
+### A snapshot that reads a model cannot run on its own
+
+The snapshots read the staging models rather than the raw tables. The raw
+identifier column arrives with padding around it on some rows, and a version
+recorded for padding appearing is a version no tier can act on. The cost is an
+ordering rule, and a monthly cycle written to snapshot first and transform
+second fails on a fresh warehouse.
+
+```
+Catalog Error: Table with name "staging.stg_credentialing__provider" does not exist because schema "staging" does not exist.
+```
+
+A combined build orders it correctly. Running the snapshots on their own does
+not.
+
 ## Replication, and the setting that is not in any configuration
 
 The credentialing database reaches the raw layer through a replication
@@ -448,6 +503,16 @@ cd transform && dbt seed --target duckdb && dbt build --target duckdb
 cd transform && dbt parse --target snowflake
 ```
 
+The build is one command on purpose. The snapshots read the staging models, so
+running them before the models that feed them fails. The attribute history
+measurement is separate and it writes to a database of its own, because a
+measurement that plants its fixtures in the shared one poisons every other
+measurement that reads it.
+
+```
+python3 scripts/measure_history.py --database /tmp/history.duckdb
+```
+
 The suite needs no downloads. Every check reads a committed fixture, and
 `tests/fixtures/PROVENANCE.md` says how each one was built and what was changed
 on the way in.
@@ -511,6 +576,12 @@ licence has not arrived yet, or whose licence row was deleted, cannot be
 reached by it at all. That is the same deletion that removes the basis for a
 clearance, and it removes the provider from the review tier in the same moment.
 Nothing here handles that yet.
+
+The attribute history is graded on three changes applied to a seeded fixture.
+What that measures is a property of the two strategies rather than a volume, so
+the fixture size is the right size for it. Nothing here says what either
+strategy costs on a provider table with millions of rows, and the check
+strategy compares a column list on every row of every run.
 
 The pipe needs a notification integration that does not exist, so it would fail
 a plan for a second reason beyond the missing account.

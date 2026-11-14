@@ -9,6 +9,8 @@ import json
 import os
 import re
 
+import yaml
+
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
 README = os.path.join(ROOT, "README.md")
@@ -22,6 +24,7 @@ MANIFESTS = {
     "targets": os.path.join(ROOT, "measurements", "targets.json"),
     "matching": os.path.join(ROOT, "measurements", "matching.json"),
     "agreement": os.path.join(ROOT, "measurements", "matching_agreement.json"),
+    "history": os.path.join(ROOT, "measurements", "history.json"),
 }
 
 # Table label in the README, then the manifest and the path within it.
@@ -300,16 +303,75 @@ RAW_DATABASE = "SCREENING_RAW"
 STAGING_SCHEMA = "staging"
 
 
+def project():
+    with open(os.path.join(ROOT, "transform", "dbt_project.yml"), encoding="utf-8") as fh:
+        return yaml.safe_load(fh)
+
+
+def models_on_disk():
+    """Every model in the project, with the directory that configures it."""
+    root = os.path.join(ROOT, "transform", "models")
+    out = {}
+    for dirpath, _dirs, files in os.walk(root):
+        folder = os.path.basename(dirpath)
+        for name in sorted(files):
+            if name.endswith(".sql"):
+                out[name[:-4]] = folder
+    return out
+
+
+def configured_schemas():
+    """The schema each model directory sets, read from the project file."""
+    groups = project()["models"]["screening"]
+    return {folder: body["+schema"] for folder, body in groups.items() if "+schema" in body}
+
+
+def check_the_resolution_manifest_covers_every_model_in_the_project():
+    # The guard that was missing. Four checks read this manifest and every one
+    # of them compares a name it finds in it, so a manifest written before a
+    # model existed agrees with everything and reports nothing. It was written
+    # once and two models were added afterwards, and the claim about where the
+    # warehouse target resolves kept passing on five of seven.
+    answers = manifest("targets")["resolved"]
+    on_disk = set(models_on_disk())
+    assert on_disk, "no model was found on disk, so this check graded nothing"
+    for target in sorted(answers):
+        named = set(answers[target]["models"])
+        assert not on_disk - named, (
+            "the manifest predates these models under %s" % target,
+            sorted(on_disk - named),
+        )
+        assert not named - on_disk, (target, sorted(named - on_disk))
+
+
+def check_the_resolution_manifest_covers_every_snapshot_in_the_project():
+    answers = manifest("targets")["resolved"]
+    root = os.path.join(ROOT, "transform", "snapshots")
+    on_disk = {name[:-4] for name in os.listdir(root) if name.endswith(".sql")}
+    assert on_disk, "no snapshot was found on disk, so this check graded nothing"
+    for target in sorted(answers):
+        named = set(answers[target].get("snapshots", {}))
+        assert named == on_disk, (target, sorted(on_disk ^ named))
+
+
 def check_the_warehouse_target_resolved_every_model_into_the_analytics_database():
+    # The schema comes from the project rather than from this file. Every model
+    # was once in one directory and the expected schema was that directory's
+    # name written here, so the first model configured anywhere else was a
+    # failure of this check rather than of the configuration.
     answers = manifest("targets")["resolved"]["snowflake"]
     assert answers["adapter"] == "snowflake", answers["adapter"]
     assert answers["models"], "no model resolved, so this check graded nothing"
+    folders = models_on_disk()
+    schemas = configured_schemas()
     wrong = []
     for name, relation in sorted(answers["models"].items()):
-        expected = "%s.%s.%s" % (ANALYTICS_DATABASE, STAGING_SCHEMA, name)
+        schema = schemas[folders[name]]
+        expected = "%s.%s.%s" % (ANALYTICS_DATABASE, schema, name)
         if relation != expected:
-            wrong.append("%s resolved to %s" % (name, relation))
+            wrong.append("%s resolved to %s rather than %s" % (name, relation, expected))
     assert not wrong, wrong
+    assert STAGING_SCHEMA in set(schemas.values()), sorted(schemas.values())
 
 
 def check_the_warehouse_target_resolved_every_source_into_the_raw_database():
@@ -393,3 +455,91 @@ def check_the_readme_states_the_pair_disagreement_the_comparison_found():
     assert "disagreed on 103 of" in text, "the README no longer states the first run's gap"
     assert "the %d pairs" % pairs in text, pairs
     assert m["pairs_only_in_sql"] == 0 and m["pairs_only_in_python"] == 0, m
+
+
+# What each snapshot strategy recorded, as the README publishes it. The second
+# cell is a list of provider identifiers rather than a count, so the single
+# column reader above cannot address it.
+HISTORY_ROWS = (
+    ("check, on the columns a tier reads", "check"),
+    ("timestamp, on the application's clock", "timestamp"),
+)
+
+SNAPSHOT_SCHEMA = "snapshots"
+
+
+def check_the_history_table_says_which_providers_each_arm_recorded():
+    text = readme()
+    m = manifest("history")
+    for label, arm in HISTORY_ROWS:
+        pattern = re.compile(
+            r"^\|\s*" + re.escape(label) + r"\s*\|\s*([0-9][0-9, ]*)\s*\|\s*$", re.M
+        )
+        found = pattern.findall(text)
+        assert len(found) == 1, (label, found)
+        stated = [int(v) for v in found[0].replace(" ", "").split(",") if v]
+        assert stated == m["recorded_a_new_version"][arm], (label, stated)
+
+
+def check_the_readme_names_the_two_providers_the_cheaper_strategy_got_wrong():
+    # Both directions of the same mistake, and the sentence states each one as
+    # a provider rather than as a count, so each is compared to the list.
+    m = manifest("history")
+    missed = m["missed_by_the_timestamp_arm"]
+    unusable = m["recorded_by_the_timestamp_arm_and_unusable"]
+    assert len(missed) == 1, missed
+    assert len(unusable) == 1, unusable
+    text = readme()
+    assert "missed provider %d" % missed[0] in text, missed
+    assert "recorded provider %d" % unusable[0] in text, unusable
+
+
+def check_the_readme_states_which_check_the_change_set_broke():
+    # The claim that one check failed and which one. A document saying a test
+    # fires is worth nothing next to the name of the test that fired.
+    m = manifest("history")["dbt_tests"]
+    assert m["before"]["failed"] == [], m["before"]["failed"]
+    assert len(m["after"]["failed"]) == 1, m["after"]["failed"]
+    text = readme()
+    assert "Before the changes no check failed" in text
+    assert m["after"]["failed"][0] in text, m["after"]["failed"]
+
+
+def check_the_readme_quotes_the_ordering_error_the_measurement_recorded():
+    # Same shape as the quoted refusal from the replication measurement. The
+    # error is the strongest claim in the section, so it is compared against
+    # what the engine actually returned.
+    alone = manifest("history")["snapshot_alone_after_seed"]
+    assert alone["errors"], "the measurement recorded no error for the snapshots run alone"
+    assert alone["exit"] != 0, alone
+    assert alone["ran_before_the_models"] is False, alone
+    text = " ".join(readme().split())
+    quoted = [e for e in alone["errors"] if " ".join(e.split()) in text]
+    assert quoted, alone["errors"]
+
+
+def check_the_change_set_moved_a_column_a_tier_reads_and_one_it_does_not():
+    # The measurement is only a comparison while the change set contains both
+    # kinds. Three changes that all move a matched column would have the two
+    # arms agreeing, and the README's claim about the cheaper one would rest on
+    # a change set that could not separate them.
+    changes = manifest("history")["changes_applied"]
+    matched = [c for c in changes if c["a_tier_reads_this_column"]]
+    unmatched = [c for c in changes if not c["a_tier_reads_this_column"]]
+    assert matched and unmatched, changes
+    assert any(c["updated_at_moved"] for c in matched), changes
+    assert any(not c["updated_at_moved"] for c in matched), changes
+
+
+def check_the_warehouse_target_resolved_every_snapshot_into_the_analytics_database():
+    # A snapshot is the one thing here that keeps state between runs, so a
+    # snapshot resolved into the wrong database writes history nothing will
+    # read again and no later run can tell it apart from an empty one.
+    answers = manifest("targets")["resolved"]["snowflake"]
+    assert answers["snapshots"], "no snapshot resolved, so this check graded nothing"
+    wrong = []
+    for name, relation in sorted(answers["snapshots"].items()):
+        expected = "%s.%s.%s" % (ANALYTICS_DATABASE, SNAPSHOT_SCHEMA, name)
+        if relation != expected:
+            wrong.append("%s resolved to %s" % (name, relation))
+    assert not wrong, wrong

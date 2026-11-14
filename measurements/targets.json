@@ -8,35 +8,55 @@
   "duckdb": {
    "adapter": "duckdb",
    "models": {
+    "int_screening__match_candidate": "\"screening\".\"intermediate\".\"int_screening__match_candidate\"",
+    "int_screening__provider_screening": "\"screening\".\"intermediate\".\"int_screening__provider_screening\"",
+    "int_screening__screening_currency": "\"screening\".\"intermediate\".\"int_screening__screening_currency\"",
     "stg_credentialing__application": "\"screening\".\"staging\".\"stg_credentialing__application\"",
     "stg_credentialing__committee_decision": "\"screening\".\"staging\".\"stg_credentialing__committee_decision\"",
     "stg_credentialing__license": "\"screening\".\"staging\".\"stg_credentialing__license\"",
     "stg_credentialing__provider": "\"screening\".\"staging\".\"stg_credentialing__provider\"",
-    "stg_registry__exclusion": "\"screening\".\"staging\".\"stg_registry__exclusion\""
+    "stg_registry__exclusion": "\"screening\".\"staging\".\"stg_registry__exclusion\"",
+    "stg_screening__screening_event": "\"screening\".\"staging\".\"stg_screening__screening_event\""
+   },
+   "snapshots": {
+    "license_attribute": "\"screening\".\"snapshots\".\"license_attribute\"",
+    "provider_attribute": "\"screening\".\"snapshots\".\"provider_attribute\"",
+    "provider_attribute_by_timestamp": "\"screening\".\"snapshots\".\"provider_attribute_by_timestamp\""
    },
    "sources": {
     "raw_credentialing_application": "\"screening\".\"main\".\"raw_credentialing_application\"",
     "raw_credentialing_committee_decision": "\"screening\".\"main\".\"raw_credentialing_committee_decision\"",
     "raw_credentialing_license": "\"screening\".\"main\".\"raw_credentialing_license\"",
     "raw_credentialing_provider": "\"screening\".\"main\".\"raw_credentialing_provider\"",
-    "raw_registry_exclusion": "\"screening\".\"main\".\"raw_registry_exclusion\""
+    "raw_registry_exclusion": "\"screening\".\"main\".\"raw_registry_exclusion\"",
+    "raw_screening_screening_event": "\"screening\".\"main\".\"raw_screening_screening_event\""
    }
   },
   "snowflake": {
    "adapter": "snowflake",
    "models": {
+    "int_screening__match_candidate": "SCREENING_ANALYTICS.intermediate.int_screening__match_candidate",
+    "int_screening__provider_screening": "SCREENING_ANALYTICS.intermediate.int_screening__provider_screening",
+    "int_screening__screening_currency": "SCREENING_ANALYTICS.intermediate.int_screening__screening_currency",
     "stg_credentialing__application": "SCREENING_ANALYTICS.staging.stg_credentialing__application",
     "stg_credentialing__committee_decision": "SCREENING_ANALYTICS.staging.stg_credentialing__committee_decision",
     "stg_credentialing__license": "SCREENING_ANALYTICS.staging.stg_credentialing__license",
     "stg_credentialing__provider": "SCREENING_ANALYTICS.staging.stg_credentialing__provider",
-    "stg_registry__exclusion": "SCREENING_ANALYTICS.staging.stg_registry__exclusion"
+    "stg_registry__exclusion": "SCREENING_ANALYTICS.staging.stg_registry__exclusion",
+    "stg_screening__screening_event": "SCREENING_ANALYTICS.staging.stg_screening__screening_event"
+   },
+   "snapshots": {
+    "license_attribute": "SCREENING_ANALYTICS.snapshots.license_attribute",
+    "provider_attribute": "SCREENING_ANALYTICS.snapshots.provider_attribute",
+    "provider_attribute_by_timestamp": "SCREENING_ANALYTICS.snapshots.provider_attribute_by_timestamp"
    },
    "sources": {
     "raw_credentialing_application": "SCREENING_RAW.credentialing.raw_credentialing_application",
     "raw_credentialing_committee_decision": "SCREENING_RAW.credentialing.raw_credentialing_committee_decision",
     "raw_credentialing_license": "SCREENING_RAW.credentialing.raw_credentialing_license",
     "raw_credentialing_provider": "SCREENING_RAW.credentialing.raw_credentialing_provider",
-    "raw_registry_exclusion": "SCREENING_RAW.registry.raw_registry_exclusion"
+    "raw_registry_exclusion": "SCREENING_RAW.registry.raw_registry_exclusion",
+    "raw_screening_screening_event": "SCREENING_RAW.screening.raw_screening_screening_event"
    }
   }
  },
