@@ -1,0 +1,245 @@
+{
+ "airflow_version": "2.11.2",
+ "dag_count": 1,
+ "dag_folder": "orchestration/dags",
+ "dags": {
+  "monthly_screening": {
+   "bash_commands": {
+    "grade_the_cycle": "cd transform && DBT_PROFILES_DIR=profiles dbt test",
+    "land_registry_files": "python scripts/fetch.py --out data/raw",
+    "record_attribute_history": "cd transform && DBT_PROFILES_DIR=profiles dbt snapshot",
+    "transform_intermediate": "cd transform && DBT_PROFILES_DIR=profiles dbt run --select intermediate",
+    "transform_staging": "cd transform && DBT_PROFILES_DIR=profiles dbt run --select staging"
+   },
+   "catchup": false,
+   "dag_id": "monthly_screening",
+   "edge_count": 5,
+   "edges": [
+    [
+     "land_registry_files",
+     "transform_staging"
+    ],
+    [
+     "record_attribute_history",
+     "transform_intermediate"
+    ],
+    [
+     "replicate_credentialing",
+     "transform_staging"
+    ],
+    [
+     "transform_intermediate",
+     "grade_the_cycle"
+    ],
+    [
+     "transform_staging",
+     "record_attribute_history"
+    ]
+   ],
+   "leaves": [
+    "grade_the_cycle"
+   ],
+   "max_active_runs": 1,
+   "operators": [
+    "BashOperator",
+    "EmptyOperator"
+   ],
+   "roots": [
+    "land_registry_files",
+    "replicate_credentialing"
+   ],
+   "schedule": "0 4 4 * *",
+   "task_count": 6,
+   "task_ids": [
+    "grade_the_cycle",
+    "land_registry_files",
+    "record_attribute_history",
+    "replicate_credentialing",
+    "transform_intermediate",
+    "transform_staging"
+   ],
+   "validated": true,
+   "validation_complaint": null
+  }
+ },
+ "import_errors": {},
+ "measured": [
+  "import_errors",
+  "dags",
+  "airflow_version",
+  "scheduled_run",
+  "ordering_reasons"
+ ],
+ "ordering_reasons": [
+  [
+   "grade_the_cycle",
+   "record_attribute_history",
+   "grade_the_cycle",
+   "license_attribute"
+  ],
+  [
+   "grade_the_cycle",
+   "record_attribute_history",
+   "grade_the_cycle",
+   "provider_attribute"
+  ],
+  [
+   "grade_the_cycle",
+   "record_attribute_history",
+   "grade_the_cycle",
+   "provider_attribute_by_timestamp"
+  ],
+  [
+   "grade_the_cycle",
+   "transform_intermediate",
+   "grade_the_cycle",
+   "int_screening__match_candidate"
+  ],
+  [
+   "grade_the_cycle",
+   "transform_intermediate",
+   "grade_the_cycle",
+   "int_screening__provider_screening"
+  ],
+  [
+   "grade_the_cycle",
+   "transform_intermediate",
+   "grade_the_cycle",
+   "int_screening__screening_currency"
+  ],
+  [
+   "grade_the_cycle",
+   "transform_staging",
+   "grade_the_cycle",
+   "stg_credentialing__application"
+  ],
+  [
+   "grade_the_cycle",
+   "transform_staging",
+   "grade_the_cycle",
+   "stg_credentialing__committee_decision"
+  ],
+  [
+   "grade_the_cycle",
+   "transform_staging",
+   "grade_the_cycle",
+   "stg_credentialing__license"
+  ],
+  [
+   "grade_the_cycle",
+   "transform_staging",
+   "grade_the_cycle",
+   "stg_credentialing__provider"
+  ],
+  [
+   "grade_the_cycle",
+   "transform_staging",
+   "grade_the_cycle",
+   "stg_registry__exclusion"
+  ],
+  [
+   "grade_the_cycle",
+   "transform_staging",
+   "grade_the_cycle",
+   "stg_screening__screening_event"
+  ],
+  [
+   "record_attribute_history",
+   "transform_staging",
+   "license_attribute",
+   "stg_credentialing__license"
+  ],
+  [
+   "record_attribute_history",
+   "transform_staging",
+   "provider_attribute",
+   "stg_credentialing__provider"
+  ],
+  [
+   "record_attribute_history",
+   "transform_staging",
+   "provider_attribute_by_timestamp",
+   "stg_credentialing__provider"
+  ],
+  [
+   "transform_intermediate",
+   "record_attribute_history",
+   "int_screening__screening_currency",
+   "provider_attribute"
+  ],
+  [
+   "transform_intermediate",
+   "transform_staging",
+   "int_screening__match_candidate",
+   "stg_credentialing__license"
+  ],
+  [
+   "transform_intermediate",
+   "transform_staging",
+   "int_screening__match_candidate",
+   "stg_credentialing__provider"
+  ],
+  [
+   "transform_intermediate",
+   "transform_staging",
+   "int_screening__match_candidate",
+   "stg_registry__exclusion"
+  ],
+  [
+   "transform_intermediate",
+   "transform_staging",
+   "int_screening__provider_screening",
+   "stg_credentialing__provider"
+  ],
+  [
+   "transform_intermediate",
+   "transform_staging",
+   "int_screening__screening_currency",
+   "stg_credentialing__application"
+  ],
+  [
+   "transform_intermediate",
+   "transform_staging",
+   "int_screening__screening_currency",
+   "stg_credentialing__provider"
+  ],
+  [
+   "transform_intermediate",
+   "transform_staging",
+   "int_screening__screening_currency",
+   "stg_screening__screening_event"
+  ],
+  [
+   "transform_staging",
+   "land_registry_files",
+   "stg_registry__exclusion",
+   "source:registry.raw_registry_exclusion"
+  ],
+  [
+   "transform_staging",
+   "replicate_credentialing",
+   "stg_credentialing__application",
+   "source:credentialing.raw_credentialing_application"
+  ],
+  [
+   "transform_staging",
+   "replicate_credentialing",
+   "stg_credentialing__committee_decision",
+   "source:credentialing.raw_credentialing_committee_decision"
+  ],
+  [
+   "transform_staging",
+   "replicate_credentialing",
+   "stg_credentialing__license",
+   "source:credentialing.raw_credentialing_license"
+  ],
+  [
+   "transform_staging",
+   "replicate_credentialing",
+   "stg_credentialing__provider",
+   "source:credentialing.raw_credentialing_provider"
+  ]
+ ],
+ "python_version": "3.11.18",
+ "scheduled_run": false
+}
