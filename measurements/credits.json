@@ -1,0 +1,162 @@
+{
+  "account_ceiling_if_clusters_were_ignored": 5,
+  "account_ceiling_per_hour": 6,
+  "cycle_floor_credits_high": 0.133333,
+  "cycle_floor_credits_low": 0.033333,
+  "cycle_stages": [
+    "land_registry_files",
+    "replicate_credentialing",
+    "transform_staging",
+    "record_attribute_history",
+    "transform_intermediate",
+    "grade_the_cycle"
+  ],
+  "derived_not_observed": true,
+  "measured": [
+    "warehouses",
+    "stage_assignment",
+    "per_warehouse",
+    "monitor",
+    "sourced_facts"
+  ],
+  "monitor": {
+    "frequency": "MONTHLY",
+    "name": "SCREENING_MONITOR",
+    "quota": null,
+    "quota_is_a_literal": false,
+    "suspend_immediate_trigger": 100,
+    "suspend_trigger": 95
+  },
+  "per_warehouse": {
+    "SCREENING_XFORM_WH": {
+      "auto_suspend_seconds": 120,
+      "floor_credits_high": 0.133333,
+      "floor_credits_low": 0.033333,
+      "resumptions_high": 4,
+      "resumptions_low": 1,
+      "stage_count": 4,
+      "stages": [
+        "grade_the_cycle",
+        "record_attribute_history",
+        "transform_intermediate",
+        "transform_staging"
+      ]
+    }
+  },
+  "sourced_facts": {
+    "a_restart_pays_again": {
+      "quote": "If a warehouse runs for 61 seconds, shuts down, and then restarts and runs for less than 60 seconds, it is billed for 121 seconds (60 + 1 + 60).",
+      "url": "https://docs.snowflake.com/en/user-guide/warehouses-considerations",
+      "value": true
+    },
+    "clusters_bill_separately": {
+      "quote": "the number of credits billed is calculated based on the warehouse size and the number of clusters that run within the time period",
+      "url": "https://docs.snowflake.com/en/user-guide/warehouses-overview",
+      "value": true
+    },
+    "generation": {
+      "quote": "Credits / hour (Gen1 warehouses)",
+      "url": "https://docs.snowflake.com/en/user-guide/warehouses-overview",
+      "value": "Gen1"
+    },
+    "minimum_billed_seconds": {
+      "quote": "Snowflake utilizes per-second billing (with a 60-second minimum each time the warehouse starts)",
+      "url": "https://docs.snowflake.com/en/user-guide/warehouses-overview",
+      "value": 60
+    },
+    "per_second_after_the_minimum": {
+      "quote": "After the first 60 seconds, all subsequent billing for a running warehouse is per-second",
+      "url": "https://docs.snowflake.com/en/user-guide/warehouses-considerations",
+      "value": true
+    },
+    "quota_is_per_interval": {
+      "quote": "Credit quota specifies the number of Snowflake credits allocated to the monitor for the specified frequency interval.",
+      "url": "https://docs.snowflake.com/en/user-guide/resource-monitors",
+      "value": true
+    },
+    "snowpipe_is_not_on_this_table": {
+      "quote": "not found on the four pages read",
+      "url": "https://docs.snowflake.com/en/user-guide/warehouses-overview",
+      "value": null
+    },
+    "suspending_too_eagerly_costs": {
+      "quote": "each time it resumes, you are billed for the minimum credit usage (that is, 60 seconds)",
+      "url": "https://docs.snowflake.com/en/user-guide/warehouses-considerations",
+      "value": true
+    }
+  },
+  "stage_assignment": {
+    "grade_the_cycle": {
+      "engine": "dbt",
+      "warehouse": "SCREENING_XFORM_WH",
+      "why": "the dbt profile's SNOWFLAKE_WAREHOUSE fallback, read out of the profile rather than written here"
+    },
+    "land_registry_files": {
+      "engine": "snowpipe",
+      "warehouse": null,
+      "why": "auto ingest from the external stage. Snowpipe is serverless and its credits are not on the warehouse rate table, so no rate here applies to it"
+    },
+    "record_attribute_history": {
+      "engine": "dbt",
+      "warehouse": "SCREENING_XFORM_WH",
+      "why": "the dbt profile's SNOWFLAKE_WAREHOUSE fallback, read out of the profile rather than written here"
+    },
+    "replicate_credentialing": {
+      "engine": "fivetran",
+      "warehouse": null,
+      "why": "the Fivetran destination writes with the warehouse named by var.loading_warehouse, which is an account specific value this repository does not hold"
+    },
+    "transform_intermediate": {
+      "engine": "dbt",
+      "warehouse": "SCREENING_XFORM_WH",
+      "why": "the dbt profile's SNOWFLAKE_WAREHOUSE fallback, read out of the profile rather than written here"
+    },
+    "transform_staging": {
+      "engine": "dbt",
+      "warehouse": "SCREENING_XFORM_WH",
+      "why": "the dbt profile's SNOWFLAKE_WAREHOUSE fallback, read out of the profile rather than written here"
+    }
+  },
+  "stage_count": 6,
+  "stage_count_with_no_derivable_rate": 2,
+  "stages_with_a_derivable_rate": 4,
+  "stages_with_no_derivable_rate": [
+    "land_registry_files",
+    "replicate_credentialing"
+  ],
+  "warehouse_count": 4,
+  "warehouses": {
+    "SCREENING_CI_WH": {
+      "address": "snowflake_warehouse.ci",
+      "auto_suspend_seconds": 60,
+      "ceiling_per_hour": 1,
+      "max_cluster_count": 1,
+      "rate_per_hour_one_cluster": 1,
+      "size": "XSMALL"
+    },
+    "SCREENING_LOAD_WH": {
+      "address": "snowflake_warehouse.loading",
+      "auto_suspend_seconds": 60,
+      "ceiling_per_hour": 1,
+      "max_cluster_count": 1,
+      "rate_per_hour_one_cluster": 1,
+      "size": "XSMALL"
+    },
+    "SCREENING_REPORT_WH": {
+      "address": "snowflake_warehouse.reporting",
+      "auto_suspend_seconds": 60,
+      "ceiling_per_hour": 2,
+      "max_cluster_count": 2,
+      "rate_per_hour_one_cluster": 1,
+      "size": "XSMALL"
+    },
+    "SCREENING_XFORM_WH": {
+      "address": "snowflake_warehouse.transforming",
+      "auto_suspend_seconds": 120,
+      "ceiling_per_hour": 2,
+      "max_cluster_count": 1,
+      "rate_per_hour_one_cluster": 2,
+      "size": "SMALL"
+    }
+  }
+}
