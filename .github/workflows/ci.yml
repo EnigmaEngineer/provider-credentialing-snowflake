@@ -108,7 +108,14 @@ jobs:
       - name: build against the clone
         env:
           PR: ${{ github.event.number }}
-          DBT_DATABASE: ${{ format('SCREENING_CI_PR_{0}', github.event.number) }}
+          # The profile reads SNOWFLAKE_DATABASE. This step used to set
+          # DBT_DATABASE, which the profile does not read, so the build would
+          # have run against the fallback and the fallback is the database the
+          # clone exists to keep out of a pull request's way.
+          SNOWFLAKE_DATABASE: ${{ format('SCREENING_CI_PR_{0}', github.event.number) }}
+          # And onto the warehouse that was created for this and named by
+          # nothing until today.
+          SNOWFLAKE_WAREHOUSE: SCREENING_CI_WH
         run: cd transform && DBT_PROFILES_DIR=profiles dbt build --target snowflake
 
       - name: drop the clone
@@ -147,6 +154,12 @@ jobs:
       - name: apply
         env:
           SNOWFLAKE_TOKEN_FILE_PATH: ${{ runner.temp }}/snowflake-oidc-token
+          # Thirteen variables below have no default and are not passed here.
+          # That gap is deliberate and tests/test_workflow.py names every one
+          # of them. Wiring them to repository variables that do not exist yet
+          # would be worse rather than better: an unset `vars.X` renders as an
+          # empty string, so a required string variable would arrive empty and
+          # apply, where today it stops with the variable named.
           TF_VAR_organization_name: ${{ vars.SNOWFLAKE_ORGANIZATION }}
           TF_VAR_account_name: ${{ vars.SNOWFLAKE_ACCOUNT }}
           TF_VAR_ci_user_name: ${{ vars.SNOWFLAKE_CI_USER }}

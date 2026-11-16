@@ -20,7 +20,7 @@ import sys
 import yaml
 
 from orchestration import workflow as wfrun
-from screening import tfread
+from screening import identity, tfread
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
@@ -139,27 +139,10 @@ def check_the_deploy_passes_a_value_for_every_variable_with_no_default():
     supplied = {k[len("TF_VAR_"):] for k in envs if k.startswith("TF_VAR_")}
 
     unsupplied = sorted(needed - supplied)
-    # Named rather than asserted away. These are the ones a deploy would have
-    # to be given and the account does not exist to give them yet.
-    #
-    # The replication variables joined the list. There is no account for that
-    # connector either, so the deploy has nothing to give them, and the job
-    # that would use them is held off.
-    expected_gap = [
-        "cost_alert_recipients",
-        "credentialing_database",
-        "credentialing_host",
-        "fivetran_postgres_user",
-        "fivetran_snowflake_role",
-        "fivetran_snowflake_user",
-        "loader_rsa_public_key",
-        "loading_warehouse",
-        "monthly_credit_quota",
-        "raw_database",
-        "registry_landing_url",
-        "snowflake_host",
-        "storage_aws_role_arn",
-    ]
+    # The list of names lives in screening/identity.py, because it was a
+    # second place the deployment's shape was written down and the two could
+    # drift. The reason it is a gap at all is there too.
+    expected_gap = sorted(identity.UNSUPPLIED_UNTIL_THERE_IS_AN_ACCOUNT)
     assert unsupplied == expected_gap, unsupplied
 
 
@@ -430,13 +413,22 @@ def check_the_tool_probe_reports_a_binary_that_is_not_here():
     assert failure, failure
 
 
+def check_a_step_that_says_nothing_is_recorded_as_having_said_nothing():
+    answer = wfrun.execute("true", 30)
+    assert answer["status"] == "ran", answer
+    assert answer["produced_output"] is False, answer
+
+
 def check_a_step_that_exits_zero_is_recorded_as_having_run():
     answer = wfrun.execute("echo one; echo two", 30)
     assert answer["status"] == "ran", answer
     assert answer["exit_code"] == 0, answer
-    assert answer["output_lines"] == 2, answer
+    assert answer["produced_output"] is True, answer
     # Nothing to diagnose, and keeping it is what made the manifest churn.
     assert "output_tail" not in answer, answer
+    # And not the line count either. It churns for the same reason the log
+    # does, which the re-measure on 2026-11-16 is what showed.
+    assert "output_lines" not in answer, answer
 
 
 def check_a_step_that_exits_non_zero_is_recorded_as_failed_with_its_output():
@@ -456,7 +448,7 @@ def check_a_failing_step_keeps_the_last_twelve_lines_and_not_all_of_them():
     """
     answer = wfrun.execute("seq 1 20; exit 1", 30)
     assert answer["status"] == "failed", answer
-    assert answer["output_lines"] == 20, answer
+    assert len(answer["output_tail"]) == 12, answer
     assert answer["output_tail"] == [str(n) for n in range(9, 21)], answer
 
 
@@ -575,3 +567,19 @@ def check_run_job_holds_every_step_of_a_self_referential_job():
         steps = wfrun.run_job(name, job, 30)
         assert [step["status"] for step in steps] == ["self-referential"], (name, steps)
         assert steps[0]["reason"] == wfrun.SELF_REFERENTIAL[name], steps[0]
+
+
+def check_no_step_in_the_manifest_records_how_much_a_tool_printed():
+    """A count of a tool's output lines is as unstable as a wall time.
+
+    Two leaves moved on the re-measure of 2026-11-16 with nothing in the
+    repository changed. `terraform init` printed 15 lines on one machine and 24 on
+    another, and `dbt seed` printed 27 and then 24. Both are counts, so both
+    passed the rule that a manifest carries counts and never wall times, and
+    neither re-derives. The property that matters is whether this repository
+    decides the value or the machine does.
+    """
+    found = run_manifest()
+    for job in found["jobs"].values():
+        for step in job["steps"]:
+            assert "output_lines" not in step, step

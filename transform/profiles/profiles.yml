@@ -11,14 +11,20 @@ screening:
       schema: main
       threads: 4
 
+    # Every identity below falls back to the name infra/ creates. A fallback
+    # is what runs when the environment sets nothing, so a fallback naming an
+    # object that does not exist is a failed connection rather than a wrong
+    # one. Two of these named objects nobody creates for six days, because
+    # dbt parses a target without opening a connection and terraform never
+    # opens this file. scripts/measure_identity.py is the join between them.
     snowflake:
       type: snowflake
       account: "{{ env_var('SNOWFLAKE_ACCOUNT', 'none') }}"
       user: "{{ env_var('SNOWFLAKE_USER', 'none') }}"
       authenticator: snowflake_jwt
       private_key_path: "{{ env_var('SNOWFLAKE_PRIVATE_KEY_PATH', '/dev/null') }}"
-      role: "{{ env_var('SNOWFLAKE_ROLE', 'SCREENING_TRANSFORM') }}"
-      warehouse: "{{ env_var('SNOWFLAKE_WAREHOUSE', 'SCREENING_TRANSFORM_WH') }}"
+      role: "{{ env_var('SNOWFLAKE_ROLE', 'SCREENING_TRANSFORMER') }}"
+      warehouse: "{{ env_var('SNOWFLAKE_WAREHOUSE', 'SCREENING_XFORM_WH') }}"
       # The models are written here and the replication lands somewhere else.
       # Two databases rather than one, because the role that transforms reads
       # raw and writes analytics and a single database makes that separation
