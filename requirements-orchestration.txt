@@ -1,0 +1,21 @@
+# The orchestration toolchain. A fourth file rather than a line in one of the
+# others, because nothing that reads this repository's data needs any of it and
+# the suite is written so it never imports Airflow at all.
+#
+# Airflow 2 and not 3. Composer 2 and the Astronomer runtime images this
+# targets run Airflow 2, and the authoring imports differ between the two, so
+# a DAG written for 3.x would be written for a runtime the declared
+# environment does not have.
+#
+# This file retires the Python floor the rest of the repository declares. Every
+# Airflow 2 release caps Requires-Python below 3.13 and the sandbox default is
+# 3.13, so the parse runs under its own interpreter and its own target
+# directory. That is also why the suite reads measurements/dag-parse.json
+# rather than importing any of this.
+apache-airflow==2.11.2
+
+# Declared because the DAG imports it directly, for the schedule's start date
+# and the retry delay. Airflow installs it anyway as one of its own
+# dependencies, and a direct import that leans on somebody else's dependency
+# is an import that breaks on their next release.
+pendulum==3.3.0

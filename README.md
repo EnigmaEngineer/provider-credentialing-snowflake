@@ -755,13 +755,14 @@ everything else.
 python3 scripts/measure_cycle_order.py
 ```
 
-The DAG parse needs Airflow, which does not install on Python 3.13. It runs
-under its own interpreter and its own target directory, and the suite reads the
-manifest rather than importing Airflow at all.
+The DAG parse needs Airflow, which does not install on Python 3.13, so it has
+a requirements file of its own and runs under its own interpreter and its own
+target directory. The suite reads the manifest rather than importing any of it.
 
 ```
-python3.11 -m pip install --target /tmp/airflow apache-airflow==2.11.2
-PYTHONPATH=/tmp/airflow python3.11 scripts/dag_parse.py
+python3.11 -m pip install --target /tmp/airflow211 -r requirements-orchestration.txt
+export PYTHONPATH=/tmp/airflow211
+python3.11 scripts/dag_parse.py
 ```
 
 The workflow run needs whatever the job it is running needs. No one machine has
