@@ -784,6 +784,199 @@ files. Those checks fail rather than skip when it is missing, because a check
 that goes quiet without its dependency reports clean on a machine that cannot
 run it.
 
+## The namespace nobody joined
+
+Terraform owns this account's names. It creates four warehouses and four
+roles. It creates two databases, a service user and a monitor. Three other files spend those
+names and none of them is a terraform file. The dbt profile names a role and a
+warehouse and a database. `orchestration/clone.py` names the database it
+clones. The workflow names environment variables and terraform variables.
+
+No tool reads more than one of those files. `terraform validate` grades the
+configuration against the provider schema and never opens the profile.
+`dbt parse` resolves a target without opening a connection, so a warehouse
+that does not exist parses exactly like one that does. The workflow is YAML
+and the only thing that has ever executed it is this repository's own runner,
+which has no account to reach either.
+
+So the join between them was performed by nobody, and it had two failures in
+it for six days.
+
+```
+the dbt profile      SNOWFLAKE_ROLE      falls back to  SCREENING_TRANSFORM
+infra/roles.tf       creates                            SCREENING_TRANSFORMER
+
+the dbt profile      SNOWFLAKE_WAREHOUSE falls back to  SCREENING_TRANSFORM_WH
+infra/warehouses.tf  creates                            SCREENING_XFORM_WH
+```
+
+The configuration landed on 2026-11-09 and the profile on 2026-11-10, dated
+with `git log -S` rather than from memory. The second day wrote down what it
+remembered of the first day's names. A fallback is what runs when nothing sets
+the variable, which is every local invocation and every job that forgets one,
+so both would have failed at connect on the first day this project had an
+account.
+
+The third failure is in the workflow and it is the one that would have cost
+something. The pull request job creates a zero copy clone and then set
+`DBT_DATABASE` for the build. The profile reads `SNOWFLAKE_DATABASE`. So the
+build would have run against the profile's fallback, which is the production
+database the clone exists to keep a pull request out of.
+
+The two failures stack, and the order they stack in is luck. The warehouse name
+is wrong, so the connection would have failed before the database name could
+send a pull request's models into `SCREENING_ANALYTICS`. Fixing only the
+warehouse would have turned a broken build into a destructive one.
+
+`scripts/measure_identity.py` performs the join and writes
+`measurements/identity.json`. Five rules, each firing on something that was
+real here:
+
+```
+a name spent and nothing creates it
+an object created at account level and nothing spends it
+an environment variable a job sets and nothing reads
+a required variable the apply job does not pass and no list excuses
+a variable the apply job passes and no variable block declares
+```
+
+Both directions, because a name spent and not created and an object created
+and not spent are the same typo seen from either end, and the day somebody
+deletes the consumer instead of fixing the name only one of them fires.
+
+The reverse direction needs its complement written down or it reports every
+object a human reaches rather than a file. `UNCONSUMED_ON_PURPOSE` is that
+list and every entry carries its reason.
+
+`tests/fixtures/identity_bad/` is a copy of this repository on 2026-11-16 with
+all three failures in it. Every rule is graded against that fixture as well as
+against the live tree, because five rules that have only ever run where the
+answer is already true are five rules nobody has seen fail.
+
+### What the rules found that was not a defect
+
+The same run reported thirteen required variables the apply job does not pass.
+That gap was already known. A check in `tests/test_workflow.py` had named every
+one of them with a reason since the deploy job was written.
+
+Wiring them to repository variables would have been worse than leaving them.
+An unset `vars.X` renders as an empty string, so a required string variable
+would arrive empty and apply, where today the apply stops and names the
+variable. The gap is the better failure and it stays.
+
+What changed is that the list of names now lives in one place rather than two.
+It was inside that check, which made it a second place the deployment's shape
+was written down, and `screening/identity.py` holds it now with the check
+reading it.
+
+## Credits per cycle
+
+There is no account, so nothing here is a measurement of consumption. Every
+figure is derived from the sizes and cluster counts in `infra/` and from
+Snowflake's published billing rules, which means every figure re-derives from
+this repository on any machine.
+
+So this publishes a floor and a ceiling and names the gap rather than
+estimating a point inside it.
+
+```
+warehouse             size    clusters  credits/hour  auto_suspend
+SCREENING_CI_WH       XSMALL         1             1            60
+SCREENING_LOAD_WH     XSMALL         1             1            60
+SCREENING_REPORT_WH   XSMALL         2             2            60
+SCREENING_XFORM_WH    SMALL          1             2           120
+account ceiling 6 credits an hour, and 5 read off the sizes alone
+```
+
+Reading the sizes alone gives 5. The reporting warehouse has a second cluster
+and every running cluster bills at the full size rate, so one sixth of the
+account's ceiling is a line in the configuration that argues about query
+concurrency and says nothing about cost. Both figures are in the manifest, so
+the difference is published rather than implied.
+
+The floor is the part nobody computes. Billing carries a sixty second minimum
+every time a warehouse starts, and a restart inside that window is charged
+again rather than absorbed. So a cycle pays that minimum once per resumption
+whether or not it does a second of work.
+
+```
+SCREENING_XFORM_WH carries 4 stages
+resumptions   1 if every gap is under auto_suspend, 4 if every gap is over it
+floor         0.0333 credits                        0.1333 credits
+```
+
+Which end a deployment sits at is decided by how long each stage takes, which
+is a fact about data nobody has loaded. The bracket is four to one and the
+thing that sets it is `auto_suspend`, which reads like a thrift setting and is
+a floor multiplier. Snowflake's own page warns about exactly this, that a
+warehouse with gaps longer than its auto suspend is billed the minimum on every
+resume.
+
+Two of the six stages have no derivable rate and they are named rather than
+left out, because a stage quietly dropped is how a cost model comes out low.
+The registry landing stage is Snowpipe, which is serverless and is not on the
+warehouse rate table at all. The replication stage writes with a warehouse
+named by an account specific variable this repository does not hold.
+
+Every billing rule carries the sentence it came from and the page it is on, and
+a lookup raises on a key nobody read. The rate table is the Gen1 table. Gen2
+rates are in a separate consumption document that was not read, so a Gen2
+account would make every figure here wrong by an amount nothing in this
+repository knows.
+
+| figure | value |
+| --- | --- |
+| warehouses this configuration creates | 4 |
+| credits an hour the account can reach | 6 |
+| credits an hour read off the sizes alone | 5 |
+| stages in the monthly cycle | 6 |
+| cycle stages with a derivable credit rate | 4 |
+| cycle stages with none | 2 |
+| account level names this configuration creates | 13 |
+| account level names something outside infra spends | 5 |
+
+The one hard ceiling is the resource monitor, and its quota is a variable with
+no default. It is one monitor across all four warehouses, so the quota is the
+account's budget rather than any warehouse's.
+
+## Teardown
+
+`terraform destroy` removes all twenty one objects the configuration creates,
+and the relations dbt builds go with the database that holds them. Nothing in
+this configuration bills while idle: every warehouse names an `auto_suspend`
+and a `resource_monitor`, and `screening/tfrules.py` fails on one that does
+not.
+
+One thing `destroy` cannot reach. The pull request clone is created by a
+statement rather than by a resource, because its name carries a number no
+configuration holds. So it needs a teardown of its own and
+`orchestration/clone.py` has it, the drop step runs `if: always()`, and the
+clone is transient with a retention of zero days so one the teardown never
+reached stops costing within a day rather than forever.
+
+The rule is that anything created outside the configuration names what removes
+it, in both directions. A prefix with no teardown is a finding, and a teardown
+for a prefix nothing creates is a reason about nothing.
+
+## The DAG reads the filesystem when Airflow imports it
+
+`orchestration/dags/monthly_screening.py` calls `cycle.read_project()`, which
+walks `transform/` and opens fifteen files, and the Airflow scheduler
+re-imports every DAG file on its parse loop. Measured at 10.6 milliseconds per
+derivation over twenty runs on 2026-11-16.
+
+It is accepted rather than fixed. The alternative is generating the graph into
+a committed file at build time, which is the split every measurement here
+already uses, and a build step for a DAG is a deployment artifact. There is no
+deployment. The condition that changes the answer is the first day this project
+has one.
+
+The second half of that cost is sharper than the milliseconds. The four
+refusals in `orchestration/cycle.py` raise at import time, so a refusal takes
+the whole DAG out of the scheduler rather than failing one task. That is the
+right behaviour for a cycle whose order is wrong and it is worth knowing before
+somebody wonders where the DAG went.
+
 ## Known limitations
 
 The replication connector has never run. The configuration is written against
@@ -903,3 +1096,49 @@ view today, so the position of the snapshot stage inside a cycle changes
 nothing, which the measurement above shows directly. The rule is enforced
 anyway, because the cost of it mattering is a green cycle with a stale
 screening in it.
+
+Every credit figure in this README is derived and none is observed. No
+statement in this project has ever run on Snowflake, so nothing here is a
+measurement of what a cycle costs. The floor is exact given the published
+minimum and the resumption count, and the resumption count is bracketed rather
+than known. A reader who wants a number for a budget should take the ceiling.
+
+The rate table is the Gen1 one. A Gen2 account bills at rates in a separate
+document nobody here read, and every credit figure above would be wrong by an
+amount this repository cannot name.
+
+`credentialing/generate.py` has not been re-measured under mutation since
+2026-11-10, when it scored 32 of 86. The fifty four survivors were triaged by
+mutation category on that day rather than read one by one, and the two
+categories that were read held two real defects, so the hit rate argues for
+reading the rest. That is the oldest open item against this repository.
+
+## What the final re-measure found
+
+Every manifest was re-derived and compared leaf by leaf against the published
+one. Twelve of fourteen came back byte for byte identical. The two that moved
+had the same defect in different clothes, and nothing else in the week would
+have found either.
+
+`measurements/history.json` carried the basename of the database the
+measurement built into. The argument has a default of one name and this README
+told a reader to pass another, so the two correct ways to run the script wrote
+different files. It records whether the run used the shared seeded database
+now, which is a boolean over something the script already checks, and the two
+invocations agree byte for byte.
+
+`measurements/workflow-run.json` carried how many lines each step printed.
+`terraform init` printed 15 lines on one machine and 24 on another, and
+`dbt seed` printed 27 and then 24, with nothing in this repository changed. It
+records whether a step said anything at all now.
+
+The second one is the one worth keeping. The rule in this portfolio has been
+that a manifest carries counts and never wall times, because a committed figure
+has to re-derive on another machine and a millisecond does not. A line count is
+a count. It passed the rule, and it re-derives no better than a millisecond,
+because it counts a tool's chatter rather than any work. The run before this
+one had already removed the log for a passing step for this reason and kept
+the count of the log.
+
+So the property that matters is not whether a field is a count. It is whether
+this repository decides the value or the machine does.

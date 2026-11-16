@@ -30,10 +30,20 @@ MANIFESTS = {
     "cycle_order": os.path.join(ROOT, "measurements", "cycle-order.json"),
     "dag_parse": os.path.join(ROOT, "measurements", "dag-parse.json"),
     "workflow_run": os.path.join(ROOT, "measurements", "workflow-run.json"),
+    "credits": os.path.join(ROOT, "measurements", "credits.json"),
+    "identity": os.path.join(ROOT, "measurements", "identity.json"),
 }
 
 # Table label in the README, then the manifest and the path within it.
 PUBLISHED = (
+    ("warehouses this configuration creates", ("credits", "warehouse_count")),
+    ("credits an hour the account can reach", ("credits", "account_ceiling_per_hour")),
+    ("credits an hour read off the sizes alone", ("credits", "account_ceiling_if_clusters_were_ignored")),
+    ("stages in the monthly cycle", ("credits", "stage_count")),
+    ("cycle stages with a derivable credit rate", ("credits", "stages_with_a_derivable_rate")),
+    ("cycle stages with none", ("credits", "stage_count_with_no_derivable_rate")),
+    ("account level names this configuration creates", ("identity", "account_level_created_count")),
+    ("account level names something outside infra spends", ("identity", "spent_count")),
     ("attribute versions the mart publishes in the derived order", ("cycle_order", "derived", "published_closed_versions")),
     ("attribute versions the mart publishes with the snapshot last", ("cycle_order", "snapshot_late", "published_closed_versions")),
     ("attribute versions the mart publishes with the snapshot last and the marts as tables", ("cycle_order", "snapshot_late_with_table_marts", "published_closed_versions")),
