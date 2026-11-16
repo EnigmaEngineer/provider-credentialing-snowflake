@@ -3,8 +3,8 @@
 Twelve checks in `tests/test_workflow.py` read the workflow file and none of
 them runs it. `terraform fmt -check -diff` sat in the configuration job for
 four days while a misaligned file sat in `infra/`, and all twelve passed
-throughout. That is `ot-236` and this is the half of it that needs no GitHub
-account and no Snowflake account.
+throughout. This is the half of that gap which needs no GitHub account and no
+Snowflake account.
 
 What this is not. It is not a runner. It does not build a container, it does
 not resolve an action, and it cannot evaluate a `${{ }}` expression. What it
@@ -93,8 +93,30 @@ def tool_version(binary, argv):
     return (done.stdout + done.stderr).strip(), None
 
 
-def provision(step):
-    """What a `uses` step means for a run on this machine."""
+def terraform_version_from(text):
+    """The version out of `terraform version -json`, or out of its first line.
+
+    A function rather than a try block inside `provision`, because the
+    fallback is for a terraform too old to answer `-json` and no machine here
+    has one. Neither the device nor the container could reach that branch, so
+    a mutation pass found it ungraded, and a branch nothing can run is a
+    branch nobody should trust.
+    """
+    try:
+        return json.loads(text)["terraform_version"]
+    except (TypeError, ValueError, KeyError):
+        return text.splitlines()[0] if text else ""
+
+
+def provision(step, read_terraform=None):
+    """What a `uses` step means for a run on this machine.
+
+    `read_terraform` exists so the terraform branch can be graded on a machine
+    that has no terraform, which is every machine this suite usually runs on.
+    Without it the branch is reachable only where the binary happens to be,
+    and a module whose job is saying what it actually measured should not have
+    a half of itself that nothing can measure.
+    """
     action = step["uses"].split("@")[0]
     with_block = step.get("with") or {}
     if action not in PROVISIONERS:
@@ -116,13 +138,11 @@ def provision(step):
                 "found": found,
             }
         return {"status": "already-satisfied", "reason": reason, "found": found}
-    text, failure = tool_version("terraform", ["version", "-json"])
+    probe = read_terraform or (lambda: tool_version("terraform", ["version", "-json"]))
+    text, failure = probe()
     if failure is not None:
         return {"status": "tool-absent", "reason": failure, "asked": str(asked)}
-    try:
-        found = json.loads(text)["terraform_version"]
-    except (ValueError, KeyError):
-        found = text.splitlines()[0] if text else ""
+    found = terraform_version_from(text)
     if asked and str(asked) != found:
         return {
             "status": "version-differs",
@@ -172,11 +192,18 @@ def execute(command, timeout):
 
 
 def measured_on():
-    terraform, _failure = tool_version("terraform", ["version"])
+    """The machine a job was measured on.
+
+    The terraform version goes through the same reader `provision` uses, so
+    there is one way to get a version out of that binary rather than two. The
+    first version of this took the first line itself, which was a second
+    parser and a mutation site nothing could reach.
+    """
+    terraform, _failure = tool_version("terraform", ["version", "-json"])
     return {
         "platform": sys.platform,
         "python": "%d.%d.%d" % sys.version_info[:3],
-        "terraform": (terraform or "").splitlines()[0] if terraform else None,
+        "terraform": terraform_version_from(terraform) if terraform else None,
     }
 
 

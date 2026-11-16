@@ -1,8 +1,9 @@
 """The monthly cycle as a graph, with the order derived instead of typed.
 
-The ordering defect this exists to make unreachable is in the README and in
-`ot-242`. The snapshots read the staging models, so a cycle that snapshots
-before it transforms fails on a fresh warehouse with a catalog error. The
+The ordering defect this exists to make unreachable is described in the
+README, with the error it produces quoted. The snapshots read the staging
+models, so a cycle that snapshots before it transforms fails on a fresh
+warehouse with a catalog error. The
 obvious fix is to write the order correctly in the DAG and move on. That fix
 lasts until the next person edits the DAG.
 
@@ -59,6 +60,19 @@ class CycleOrderError(Exception):
 
 def source_key(source, table):
     return "source:%s.%s" % (source, table)
+
+
+def source_name(key):
+    """The source a key belongs to, which is the inverse of the function above.
+
+    It exists because the name was being picked out of the key with two
+    `split` calls, in the refusal and again in the check that grades the
+    refusal. Two places parsing one string is two places to get it wrong, and
+    a mutation pass found both of them unexercised.
+    """
+    if not key.startswith("source:"):
+        raise CycleOrderError("%r is not a source key" % (key,))
+    return key[len("source:") :].split(".", 1)[0]
 
 
 class Node:
@@ -335,7 +349,7 @@ def plan(project=None, declared=None):
     stray = sorted(
         key
         for key in unlanded_sources(project, declared)
-        if key.split(":", 1)[1].split(".", 1)[0] not in SOURCES_THE_CYCLE_DOES_NOT_LAND
+        if source_name(key) not in SOURCES_THE_CYCLE_DOES_NOT_LAND
     )
     if stray:
         raise CycleOrderError(

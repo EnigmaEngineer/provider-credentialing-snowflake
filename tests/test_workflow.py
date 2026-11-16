@@ -15,6 +15,7 @@ that did not run, because no one machine here can run all of them.
 import json
 import os
 import re
+import sys
 
 import yaml
 
@@ -305,10 +306,17 @@ def check_every_version_key_the_runner_reads_is_the_key_the_workflow_writes():
 
 
 def check_the_runner_refuses_a_pinned_tool_version_it_does_not_have():
+    # Either answer is right and which one depends on the machine, so each is
+    # held to what it has to carry. A version-differs with nothing in `found`
+    # is a mismatch against a version nobody read.
     answer = wfrun.provision(
         {"uses": "hashicorp/setup-terraform@v3", "with": {"terraform_version": "0.0.1"}}
     )
     assert answer["status"] in ("version-differs", "tool-absent"), answer
+    if answer["status"] == "version-differs":
+        assert answer["found"], answer
+    else:
+        assert "terraform" in answer["reason"], answer
 
 
 def check_the_suite_job_is_recorded_as_self_referential_rather_than_run():
@@ -352,3 +360,218 @@ def check_a_step_that_passed_carries_no_output():
     for step in all_steps(run_manifest()):
         if step["status"] == "ran":
             assert "output_tail" not in step, step["name"]
+
+
+def check_the_runner_reads_the_checkout_step_without_a_with_block():
+    # `actions/checkout` is a known action and carries no `with` block, and the
+    # version lookup runs before the action is recognised. A mutation making
+    # the missing block `None` instead of empty survived until this existed.
+    answer = wfrun.provision({"uses": "actions/checkout@v4"})
+    assert answer["status"] == "already-satisfied", answer
+    assert answer["reason"], answer
+
+
+def check_the_runner_accepts_a_python_pin_that_matches_this_interpreter():
+    here = "%d.%d" % sys.version_info[:2]
+    answer = wfrun.provision(
+        {"uses": "actions/setup-python@v5", "with": {"python-version": here}}
+    )
+    assert answer["status"] == "already-satisfied", answer
+    assert answer["found"] == here, answer
+
+
+def check_the_runner_refuses_a_python_pin_that_does_not_match():
+    """The defect that was actually in this module on the day it landed.
+
+    The table spelled the key with an underscore, so `asked` came back empty
+    and every step reported satisfied on whatever interpreter was running.
+    This asserts the mismatch is seen and that both versions are named.
+    """
+    answer = wfrun.provision(
+        {"uses": "actions/setup-python@v5", "with": {"python-version": "2.6"}}
+    )
+    assert answer["status"] == "version-differs", answer
+    assert answer["asked"] == "2.6", answer
+    assert answer["found"] == "%d.%d" % sys.version_info[:2], answer
+
+
+def check_the_runner_tells_the_two_setup_actions_apart():
+    # One mutation made the python branch fall through to the terraform one,
+    # which reports on a binary the workflow never asked about.
+    python_answer = wfrun.provision(
+        {"uses": "actions/setup-python@v5", "with": {"python-version": "2.6"}}
+    )
+    terraform_answer = wfrun.provision(
+        {"uses": "hashicorp/setup-terraform@v3", "with": {"terraform_version": "0.0.1"}}
+    )
+    assert python_answer.get("found") == "%d.%d" % sys.version_info[:2], python_answer
+    assert python_answer.get("found") != terraform_answer.get("found"), (
+        python_answer,
+        terraform_answer,
+    )
+
+
+def check_the_tool_probe_reads_a_version_off_a_binary_that_is_here():
+    """Exercised against the interpreter, because terraform is not everywhere.
+
+    The device this suite usually runs on has no terraform, so four mutations
+    inside the probe survived for no reason except that nothing reached it.
+    Python is on every machine that can run this file at all.
+    """
+    text, failure = wfrun.tool_version("python3", ["--version"])
+    assert failure is None, failure
+    assert "Python" in text, text
+    assert "%d.%d" % sys.version_info[:2] in text, text
+
+
+def check_the_tool_probe_reports_a_binary_that_is_not_here():
+    text, failure = wfrun.tool_version("a-binary-no-machine-has", ["--version"])
+    assert text is None, text
+    assert failure, failure
+
+
+def check_a_step_that_exits_zero_is_recorded_as_having_run():
+    answer = wfrun.execute("echo one; echo two", 30)
+    assert answer["status"] == "ran", answer
+    assert answer["exit_code"] == 0, answer
+    assert answer["output_lines"] == 2, answer
+    # Nothing to diagnose, and keeping it is what made the manifest churn.
+    assert "output_tail" not in answer, answer
+
+
+def check_a_step_that_exits_non_zero_is_recorded_as_failed_with_its_output():
+    answer = wfrun.execute("echo the reason; exit 3", 30)
+    assert answer["status"] == "failed", answer
+    assert answer["exit_code"] == 3, answer
+    assert answer["output_tail"] == ["the reason"], answer
+
+
+def check_a_failing_step_keeps_the_last_twelve_lines_and_not_all_of_them():
+    """The window, because a manifest carrying a whole suite's output is a
+    diff nobody reads.
+
+    Twenty lines in, twelve out, and the twelve are the last ones. A mutation
+    moving that boundary by one survived while every test command printed
+    fewer lines than the window.
+    """
+    answer = wfrun.execute("seq 1 20; exit 1", 30)
+    assert answer["status"] == "failed", answer
+    assert answer["output_lines"] == 20, answer
+    assert answer["output_tail"] == [str(n) for n in range(9, 21)], answer
+
+
+def check_a_step_that_writes_to_both_streams_has_both_read():
+    answer = wfrun.execute("echo out; echo err 1>&2; exit 1", 30)
+    assert sorted(answer["output_tail"]) == ["err", "out"], answer
+
+
+def check_the_terraform_version_is_read_out_of_its_json():
+    assert wfrun.terraform_version_from('{"terraform_version": "1.9.8"}') == "1.9.8"
+
+
+def check_the_terraform_version_falls_back_to_the_first_line():
+    """The branch for a terraform too old to answer `-json`.
+
+    No machine in this project has one, so neither the device nor the
+    container could reach this, and three mutations inside it survived.
+    """
+    assert wfrun.terraform_version_from("Terraform v1.9.8\non linux_amd64") == "Terraform v1.9.8"
+    assert wfrun.terraform_version_from('{"no_version_key": true}') == '{"no_version_key": true}'
+    assert wfrun.terraform_version_from("") == ""
+    assert wfrun.terraform_version_from(None) == ""
+
+
+def check_the_terraform_branch_accepts_a_version_that_matches_the_pin():
+    """Graded with the probe supplied, because no machine here has terraform.
+
+    The suite runs where the binary is absent, so this half of `provision`
+    was reachable only in the container, and three mutations inside it
+    survived on the machine that runs the pass.
+    """
+    answer = wfrun.provision(
+        {"uses": "hashicorp/setup-terraform@v3", "with": {"terraform_version": "1.9.8"}},
+        read_terraform=lambda: ('{"terraform_version": "1.9.8"}', None),
+    )
+    assert answer["status"] == "already-satisfied", answer
+    assert answer["found"] == "1.9.8", answer
+
+
+def check_the_terraform_branch_refuses_a_version_that_does_not_match_the_pin():
+    answer = wfrun.provision(
+        {"uses": "hashicorp/setup-terraform@v3", "with": {"terraform_version": "1.9.8"}},
+        read_terraform=lambda: ('{"terraform_version": "1.5.0"}', None),
+    )
+    assert answer["status"] == "version-differs", answer
+    assert answer["asked"] == "1.9.8", answer
+    assert answer["found"] == "1.5.0", answer
+
+
+def check_the_terraform_branch_reports_a_binary_it_could_not_run():
+    answer = wfrun.provision(
+        {"uses": "hashicorp/setup-terraform@v3", "with": {"terraform_version": "1.9.8"}},
+        read_terraform=lambda: (None, "FileNotFoundError: terraform"),
+    )
+    assert answer["status"] == "tool-absent", answer
+    assert "terraform" in answer["reason"], answer
+
+
+def check_a_terraform_step_with_no_pin_is_satisfied_by_whatever_is_there():
+    # The workflow always pins, and a step that stopped pinning would make
+    # the comparison vacuous rather than failing, so the behaviour is named.
+    answer = wfrun.provision(
+        {"uses": "hashicorp/setup-terraform@v3"},
+        read_terraform=lambda: ('{"terraform_version": "1.5.0"}', None),
+    )
+    assert answer["status"] == "already-satisfied", answer
+
+
+def check_the_machine_record_names_this_interpreter_and_platform():
+    where = wfrun.measured_on()
+    assert where["python"] == "%d.%d.%d" % sys.version_info[:3], where
+    assert where["platform"] == sys.platform, where
+    assert "terraform" in where, where
+
+
+def check_run_job_classifies_every_shape_of_step():
+    """`run_job` was reachable only through the entry point.
+
+    Five mutations inside its branch chain survived, because the only thing
+    that had ever called it was the script that writes the manifest. The job
+    below carries one step of each shape the workflow can hold.
+    """
+    job = {
+        "steps": [
+            {"uses": "actions/checkout@v4"},
+            {"name": "runs", "run": "echo fine"},
+            {"name": "nothing"},
+            {"name": "expressive", "run": "echo ${{ github.sha }}"},
+            {"name": "env only", "run": "echo fine", "env": {"X": "${{ vars.X }}"}},
+        ]
+    }
+    steps = wfrun.run_job("transform", job, 30)
+    assert [step["status"] for step in steps] == [
+        "already-satisfied",
+        "ran",
+        "no-command",
+        "needs-expression",
+        "needs-expression",
+    ], [(step["name"], step["status"]) for step in steps]
+    assert [step["index"] for step in steps] == [0, 1, 2, 3, 4], steps
+    assert steps[0]["name"] == "actions/checkout@v4", steps[0]
+
+
+def check_run_job_holds_every_step_of_a_job_whose_if_is_false():
+    job = {"if": False, "steps": [{"name": "never", "run": "exit 1"}]}
+    steps = wfrun.run_job("clone", job, 30)
+    assert [step["status"] for step in steps] == ["job-held-off"], steps
+    assert steps[0]["reason"], steps[0]
+    # And nothing ran, so there is no exit code to report.
+    assert "exit_code" not in steps[0], steps[0]
+
+
+def check_run_job_holds_every_step_of_a_self_referential_job():
+    job = {"steps": [{"name": "the checks", "run": "exit 1"}]}
+    for name in sorted(wfrun.SELF_REFERENTIAL):
+        steps = wfrun.run_job(name, job, 30)
+        assert [step["status"] for step in steps] == ["self-referential"], (name, steps)
+        assert steps[0]["reason"] == wfrun.SELF_REFERENTIAL[name], steps[0]

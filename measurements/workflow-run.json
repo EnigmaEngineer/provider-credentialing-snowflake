@@ -4,7 +4,7 @@
    "measured_on": {
     "platform": "linux",
     "python": "3.13.18",
-    "terraform": "Terraform v1.9.8"
+    "terraform": "1.9.8"
    },
    "steps": [
     {
@@ -49,7 +49,7 @@
    "measured_on": {
     "platform": "linux",
     "python": "3.13.18",
-    "terraform": "Terraform v1.9.8"
+    "terraform": "1.9.8"
    },
    "steps": [
     {
@@ -92,7 +92,7 @@
    "measured_on": {
     "platform": "linux",
     "python": "3.13.18",
-    "terraform": "Terraform v1.9.8"
+    "terraform": "1.9.8"
    },
    "steps": [
     {
@@ -125,7 +125,7 @@
    "measured_on": {
     "platform": "linux",
     "python": "3.13.18",
-    "terraform": "Terraform v1.9.8"
+    "terraform": "1.9.8"
    },
    "steps": [
     {
@@ -158,7 +158,7 @@
    "measured_on": {
     "platform": "linux",
     "python": "3.13.18",
-    "terraform": "Terraform v1.9.8"
+    "terraform": "1.9.8"
    },
    "steps": [
     {

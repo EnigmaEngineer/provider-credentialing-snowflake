@@ -8,9 +8,13 @@ its mutation score. The second kind reads the manifest, because the parse needs
 Airflow and Airflow needs a Python this suite does not insist on.
 """
 
+import io
 import json
 import os
 import re
+import shutil
+import sys
+import tempfile
 
 from orchestration import clone, cycle
 
@@ -141,9 +145,7 @@ def check_a_dependency_pointing_both_ways_is_refused():
 
 def check_the_unlanded_sources_are_exactly_the_ones_named():
     found = project()
-    unlanded = {
-        key.split(":", 1)[1].split(".", 1)[0] for key in cycle.unlanded_sources(found)
-    }
+    unlanded = {cycle.source_name(key) for key in cycle.unlanded_sources(found)}
     named = set(cycle.SOURCES_THE_CYCLE_DOES_NOT_LAND)
     assert unlanded == named, sorted(unlanded ^ named)
 
@@ -278,6 +280,28 @@ def check_the_clone_name_comes_from_the_pull_request_number():
     assert clone.database_name(1204) == "SCREENING_CI_PR_1204"
 
 
+def check_the_lowest_real_pull_request_number_is_accepted():
+    # The boundary, because the guard below is a comparison and a comparison
+    # with the wrong edge refuses the first pull request anybody opens.
+    assert clone.database_name(1) == "SCREENING_CI_PR_1"
+
+
+def check_a_non_positive_pull_request_number_is_refused_for_being_non_positive():
+    """The guard and its reason, rather than only its outcome.
+
+    The identifier pattern would refuse a negative number anyway, because the
+    minus sign is not in it. So this asserts the message as well, which is the
+    only thing that tells the two refusals apart.
+    """
+    for bad in (0, -1, -3):
+        try:
+            clone.database_name(bad)
+        except clone.CloneNameError as exc:
+            assert "positive" in str(exc), (bad, str(exc))
+        else:
+            raise AssertionError("accepted %r as a pull request number" % (bad,))
+
+
 def check_a_clone_name_built_from_anything_but_an_integer_is_refused():
     # The identifier goes into DDL with no way to parameterise it, so a branch
     # name reaching this is a string concatenated into a statement.
@@ -315,6 +339,30 @@ def check_the_clone_never_drops_the_database_it_clones():
     for number in (1, 2, 99):
         for statement in clone.drop_statements(number):
             assert source not in statement.lower(), statement
+
+
+def check_the_clone_entry_point_dispatches_the_action_it_was_given():
+    """The workflow pipes this straight into the warehouse, so the dispatch is
+    not a convenience.
+
+    `python -m orchestration.clone create "$PR"` is a job step and its output
+    is somebody else's input. An entry point that printed the drop statement
+    for `create` would drop the clone the job was asked to make, and a
+    mutation flipping that comparison survived until this check existed.
+    """
+    for action, expected in (
+        ("create", clone.create_statements(31)),
+        ("drop", clone.drop_statements(31)),
+    ):
+        held = io.StringIO()
+        stdout, sys.stdout = sys.stdout, held
+        try:
+            code = clone.main([action, "31"])
+        finally:
+            sys.stdout = stdout
+        assert code == 0, (action, code)
+        printed = tuple(line for line in held.getvalue().splitlines() if line.strip())
+        assert printed == expected, (action, printed, expected)
 
 
 def check_the_clone_job_builds_its_statements_from_the_module():
@@ -489,3 +537,97 @@ def check_every_derived_edge_has_a_reason_in_the_manifest():
 def check_the_reasons_in_the_manifest_are_the_ones_the_derivation_gives():
     found = [list(row) for row in cycle.ordering_reasons(project())]
     assert manifest()["ordering_reasons"] == found, "the manifest is stale"
+
+
+# Four cases added after a mutation pass on the day the module landed. Each one
+# is a path the suite was not reaching, and three of the four are the path
+# production uses.
+
+
+def check_the_derivation_reached_with_no_argument_agrees_with_the_explicit_one():
+    """The default argument path, which is the one the DAG and the parse use.
+
+    Every other check here passes a project in, so the branch that reads the
+    project off disk was ungraded, and the DAG calls nothing else. Three
+    mutations to those defaults survived until this existed.
+    """
+    found = project()
+    assert [stage.name for stage in cycle.stages()] == [
+        stage.name for stage in cycle.stages(found)
+    ]
+    assert [stage.name for stage in cycle.plan()] == [
+        stage.name for stage in cycle.plan(found)
+    ]
+    assert cycle.dependencies() == cycle.dependencies(found)
+    assert cycle.ordering_reasons() == cycle.ordering_reasons(found)
+
+
+def check_a_source_key_round_trips_through_its_own_name():
+    assert cycle.source_name(cycle.source_key("registry", "raw_registry_exclusion")) == "registry"
+    # A table name with a dot in it still belongs to one source.
+    assert cycle.source_name(cycle.source_key("a", "b.c")) == "a"
+    try:
+        cycle.source_name("registry.exclusion")
+    except cycle.CycleOrderError:
+        pass
+    else:
+        raise AssertionError("a string that is not a source key was accepted as one")
+
+
+def check_the_derivation_ignores_a_file_that_is_not_a_model():
+    """A stray file in a model directory is not a relation.
+
+    The filter here is an `and` over two conditions and this project has no
+    file that separates them, so flipping it to an `or` changed nothing. A
+    note or a README dropped beside the models is an ordinary thing to do.
+    """
+    scratch = tempfile.mkdtemp(prefix="cycle-stray-")
+    staging = os.path.join(scratch, "models", "staging")
+    os.makedirs(staging)
+    os.makedirs(os.path.join(scratch, "snapshots"))
+    with open(os.path.join(staging, "stg_one.sql"), "w", encoding="utf-8") as fh:
+        fh.write("select 1\n")
+    with open(os.path.join(staging, "_models.yml"), "w", encoding="utf-8") as fh:
+        fh.write("version: 2\n")
+    with open(os.path.join(staging, "notes.md"), "w", encoding="utf-8") as fh:
+        fh.write("a note somebody left here\n")
+    try:
+        found = cycle.read_project(scratch)
+    finally:
+        shutil.rmtree(scratch, ignore_errors=True)
+    assert sorted(found.nodes) == ["stg_one"], sorted(found.nodes)
+
+
+def check_a_consumed_relation_nothing_produces_gives_no_reason():
+    """`ordering_reasons` runs no refusal, so its guard is load bearing.
+
+    `plan` refuses a project with a relation no stage produces, so by the time
+    the ordering is computed every consumed relation has an owner. Nothing
+    refuses anything before the reasons are listed, and a stage set can name a
+    relation nothing produces.
+    """
+    nodes = {"only": cycle.Node("only", "model", "staging", [])}
+    found = cycle.Project(nodes, ())
+    declared = [
+        cycle.Stage("build", "dbt run --select staging", "staging", ("only",)),
+        cycle.Stage("grade", "dbt test", "", (), consumes=("only", "absent")),
+    ]
+    reasons = cycle.ordering_reasons(found, declared)
+    assert reasons == (("grade", "build", "grade", "only"),), reasons
+
+
+def check_a_consumed_relation_nothing_produces_adds_no_edge():
+    """`dependencies` runs no refusal either, so the same guard is live there.
+
+    `plan` refuses a project with a relation no stage produces and these two
+    do not, which is why both carry the check and why neither of those guards
+    is redundant.
+    """
+    nodes = {"only": cycle.Node("only", "model", "staging", [])}
+    found = cycle.Project(nodes, ())
+    declared = [
+        cycle.Stage("build", "dbt run --select staging", "staging", ("only",)),
+        cycle.Stage("grade", "dbt test", "", (), consumes=("only", "absent")),
+    ]
+    edges = cycle.dependencies(found, declared)
+    assert edges == {"build": frozenset(), "grade": frozenset({"build"})}, edges
