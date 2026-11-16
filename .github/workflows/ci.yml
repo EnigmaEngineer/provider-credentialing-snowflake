@@ -47,13 +47,83 @@ jobs:
       - name: validate
         run: terraform -chdir=infra validate
 
+  transform:
+    # The only job here that runs the models. It builds them on a local engine
+    # on every pull request, so a model that no longer compiles fails before a
+    # review rather than on the first day this project has a warehouse.
+    #
+    # `dbt build` and not a sequence of commands. The snapshots read the
+    # staging models, so an order written by hand is the one thing this job
+    # must not contain. The monthly cycle solves the same problem by deriving
+    # the order, in `orchestration/cycle.py`.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+
+      - name: install
+        run: python -m pip install -r requirements-transform.txt
+
+      - name: seed
+        run: cd transform && DBT_PROFILES_DIR=profiles dbt seed --target duckdb
+
+      - name: build
+        run: cd transform && DBT_PROFILES_DIR=profiles dbt build --target duckdb --exclude resource_type:seed
+
+      # A parse against the warehouse adapter resolves every relation name
+      # without a connection. It does not compile the warehouse SQL.
+      - name: parse against the warehouse adapter
+        run: cd transform && DBT_PROFILES_DIR=profiles dbt parse --target snowflake
+
+  clone:
+    # The zero copy clone per pull request. There is no Snowflake account for
+    # this project, so this job has nothing to clone from and is held off
+    # rather than left to fail on every pull request.
+    #
+    # The statements are not written here. `orchestration/clone.py` builds
+    # them and the suite grades the name and the lifecycle, because SQL inside
+    # a YAML string is read by nothing. The teardown is unconditional, which
+    # is the whole argument for the job having a teardown step at all.
+    if: false
+    needs: [suite, configuration, transform]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+
+      - name: install
+        run: python -m pip install -r requirements-transform.txt
+
+      - name: clone the marts
+        env:
+          PR: ${{ github.event.number }}
+        run: python -m orchestration.clone create "$PR" | snow sql --stdin
+
+      - name: build against the clone
+        env:
+          PR: ${{ github.event.number }}
+          DBT_DATABASE: ${{ format('SCREENING_CI_PR_{0}', github.event.number) }}
+        run: cd transform && DBT_PROFILES_DIR=profiles dbt build --target snowflake
+
+      - name: drop the clone
+        if: always()
+        env:
+          PR: ${{ github.event.number }}
+        run: python -m orchestration.clone drop "$PR" | snow sql --stdin
+
   deploy:
     # Nothing to deploy to. There is no Snowflake account for this project and
     # no service user, so this job has no identity to assume and is held off
     # rather than left to fail on every push. The step below is the shape the
     # deploy takes once the account exists.
     if: false
-    needs: [suite, configuration]
+    needs: [suite, configuration, transform]
     runs-on: ubuntu-latest
     permissions:
       contents: read

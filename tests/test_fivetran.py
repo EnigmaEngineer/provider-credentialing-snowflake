@@ -115,6 +115,15 @@ def check_the_configuration_names_no_credential_value():
 def check_the_broken_fixture_is_not_wired_into_anything():
     # It exists to be refused. A fixture that something deploys from is a
     # different kind of file.
+    #
+    # Files and not entries. `terraform init` leaves a `.terraform` directory
+    # here and the walk used to open it, so this crashed on the first day
+    # anything ran init inside the repository. Every file is still read rather
+    # than only the `.tf` ones, because a reference in a tfvars or a note
+    # beside the configuration counts too.
     for name in sorted(os.listdir(INFRA)):
-        with open(os.path.join(INFRA, name), encoding="utf-8") as fh:
+        path = os.path.join(INFRA, name)
+        if not os.path.isfile(path):
+            continue
+        with open(path, encoding="utf-8") as fh:
             assert "fivetran_bad" not in fh.read(), name

@@ -1,0 +1,237 @@
+{
+ "jobs": {
+  "clone": {
+   "measured_on": {
+    "platform": "linux",
+    "python": "3.13.18",
+    "terraform": "Terraform v1.9.8"
+   },
+   "steps": [
+    {
+     "index": 0,
+     "name": "actions/checkout@v4",
+     "reason": "the job's own `if` is false",
+     "status": "job-held-off"
+    },
+    {
+     "index": 1,
+     "name": "actions/setup-python@v5",
+     "reason": "the job's own `if` is false",
+     "status": "job-held-off"
+    },
+    {
+     "index": 2,
+     "name": "install",
+     "reason": "the job's own `if` is false",
+     "status": "job-held-off"
+    },
+    {
+     "index": 3,
+     "name": "clone the marts",
+     "reason": "the job's own `if` is false",
+     "status": "job-held-off"
+    },
+    {
+     "index": 4,
+     "name": "build against the clone",
+     "reason": "the job's own `if` is false",
+     "status": "job-held-off"
+    },
+    {
+     "index": 5,
+     "name": "drop the clone",
+     "reason": "the job's own `if` is false",
+     "status": "job-held-off"
+    }
+   ]
+  },
+  "configuration": {
+   "measured_on": {
+    "platform": "linux",
+    "python": "3.13.18",
+    "terraform": "Terraform v1.9.8"
+   },
+   "steps": [
+    {
+     "index": 0,
+     "name": "actions/checkout@v4",
+     "reason": "the working tree is already here",
+     "status": "already-satisfied"
+    },
+    {
+     "found": "1.9.8",
+     "index": 1,
+     "name": "hashicorp/setup-terraform@v3",
+     "reason": "terraform has to be on the path",
+     "status": "already-satisfied"
+    },
+    {
+     "exit_code": 0,
+     "index": 2,
+     "name": "formatting",
+     "output_lines": 0,
+     "status": "ran"
+    },
+    {
+     "exit_code": 0,
+     "index": 3,
+     "name": "init",
+     "output_lines": 15,
+     "status": "ran"
+    },
+    {
+     "exit_code": 0,
+     "index": 4,
+     "name": "validate",
+     "output_lines": 13,
+     "status": "ran"
+    }
+   ]
+  },
+  "deploy": {
+   "measured_on": {
+    "platform": "linux",
+    "python": "3.13.18",
+    "terraform": "Terraform v1.9.8"
+   },
+   "steps": [
+    {
+     "index": 0,
+     "name": "actions/checkout@v4",
+     "reason": "the job's own `if` is false",
+     "status": "job-held-off"
+    },
+    {
+     "index": 1,
+     "name": "hashicorp/setup-terraform@v3",
+     "reason": "the job's own `if` is false",
+     "status": "job-held-off"
+    },
+    {
+     "index": 2,
+     "name": "identity token",
+     "reason": "the job's own `if` is false",
+     "status": "job-held-off"
+    },
+    {
+     "index": 3,
+     "name": "apply",
+     "reason": "the job's own `if` is false",
+     "status": "job-held-off"
+    }
+   ]
+  },
+  "suite": {
+   "measured_on": {
+    "platform": "linux",
+    "python": "3.13.18",
+    "terraform": "Terraform v1.9.8"
+   },
+   "steps": [
+    {
+     "index": 0,
+     "name": "actions/checkout@v4",
+     "reason": "the suite grades this manifest, so a run of it recorded here would be one iteration stale",
+     "status": "self-referential"
+    },
+    {
+     "index": 1,
+     "name": "actions/setup-python@v5",
+     "reason": "the suite grades this manifest, so a run of it recorded here would be one iteration stale",
+     "status": "self-referential"
+    },
+    {
+     "index": 2,
+     "name": "install",
+     "reason": "the suite grades this manifest, so a run of it recorded here would be one iteration stale",
+     "status": "self-referential"
+    },
+    {
+     "index": 3,
+     "name": "checks",
+     "reason": "the suite grades this manifest, so a run of it recorded here would be one iteration stale",
+     "status": "self-referential"
+    }
+   ]
+  },
+  "transform": {
+   "measured_on": {
+    "platform": "linux",
+    "python": "3.13.18",
+    "terraform": "Terraform v1.9.8"
+   },
+   "steps": [
+    {
+     "index": 0,
+     "name": "actions/checkout@v4",
+     "reason": "the working tree is already here",
+     "status": "already-satisfied"
+    },
+    {
+     "asked": "3.10",
+     "found": "3.13",
+     "index": 1,
+     "name": "actions/setup-python@v5",
+     "reason": "the workflow pins python 3.10 and this is 3.13",
+     "status": "version-differs"
+    },
+    {
+     "exit_code": 0,
+     "index": 2,
+     "name": "install",
+     "output_lines": 76,
+     "status": "ran"
+    },
+    {
+     "exit_code": 0,
+     "index": 3,
+     "name": "seed",
+     "output_lines": 27,
+     "status": "ran"
+    },
+    {
+     "exit_code": 0,
+     "index": 4,
+     "name": "build",
+     "output_lines": 148,
+     "status": "ran"
+    },
+    {
+     "exit_code": 0,
+     "index": 5,
+     "name": "parse against the warehouse adapter",
+     "output_lines": 8,
+     "status": "ran"
+    }
+   ]
+  }
+ },
+ "jobs_attempted": [
+  "clone",
+  "configuration",
+  "deploy",
+  "suite",
+  "transform"
+ ],
+ "jobs_in_file": [
+  "clone",
+  "configuration",
+  "deploy",
+  "suite",
+  "transform"
+ ],
+ "measured": [
+  "jobs",
+  "verdict",
+  "jobs_attempted",
+  "summary"
+ ],
+ "summary": {
+  "jobs_in_the_workflow": 5,
+  "jobs_with_an_executed_step": 2,
+  "steps_executed": 7,
+  "steps_not_executed": 18
+ },
+ "verdict": "incomplete",
+ "workflow": ".github/workflows/ci.yml"
+}
