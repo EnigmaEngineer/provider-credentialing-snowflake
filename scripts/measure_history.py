@@ -269,7 +269,18 @@ def main(argv=None):
             "after_exit": second_build[0],
         },
         "snapshot_alone_after_seed": snapshot_alone,
-        "database": os.path.basename(database),
+        # Not the filename. The database is an argument with a default, and
+        # the README tells a reader to pass a different path, so two correct
+        # invocations wrote two different values here and the re-measure on 2026-11-16
+        # is what found that. A committed figure has to re-derive on another
+        # machine, which is the 2026-10-13 rule, and a path chosen by the
+        # caller never does.
+        #
+        # What the field was really there to say is that this did not run
+        # against the database the seeds and the comparison share, because
+        # that would have overwritten the fixture. The script already refuses
+        # that case, so the boolean is over something it knows.
+        "ran_against_the_shared_database": os.path.abspath(database) == os.path.abspath(SHARED),
         "measured": [
             "changes_applied",
             "versions",

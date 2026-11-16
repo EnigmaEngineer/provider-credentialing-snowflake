@@ -11,11 +11,13 @@ compare that set against the configuration in the snapshot file.
 """
 
 import ast
+import json
 import os
 import re
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
+HISTORY = os.path.join(ROOT, "measurements", "history.json")
 SNAPSHOTS = os.path.join(ROOT, "transform", "snapshots")
 MATCH = os.path.join(ROOT, "screening", "match.py")
 
@@ -132,3 +134,36 @@ def check_every_snapshot_reads_a_staging_model_rather_than_the_raw_table():
             model = os.path.join(ROOT, "transform", "models", "staging", target + ".sql")
             assert os.path.exists(model), (name, target)
         assert "source(" not in text, name
+
+
+def check_the_history_manifest_names_no_path():
+    """A field whose value is a path the caller chose is not a derived figure.
+
+    The committed manifest carried the basename of the database the
+    measurement built into. The default is one name and the README tells a
+    reader to pass another, so the two correct ways to run it wrote different
+    files and the figure could not re-derive. Found by the re-measure on
+    2026-11-16 and nothing else would have found it.
+    """
+    with open(HISTORY, encoding="utf-8") as fh:
+        found = json.load(fh)
+    assert "database" not in found, "the path is back in the manifest"
+    assert found["ran_against_the_shared_database"] is False
+
+
+def check_no_manifest_in_the_repository_carries_a_filesystem_path():
+    """The same defect by a different door, over every manifest rather than one.
+
+    A path is a property of the machine and of the command, so a check that
+    only guarded this one file would let the next one in somewhere else.
+    """
+    root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    folder = os.path.join(root, "measurements")
+    suspicious = (".duckdb", ".sqlite", "/tmp/", "/home/", "C:\\\\", ".db\"")
+    for name in sorted(os.listdir(folder)):
+        if not name.endswith(".json"):
+            continue
+        with open(os.path.join(folder, name), encoding="utf-8") as fh:
+            text = fh.read()
+        for mark in suspicious:
+            assert mark not in text, (name, mark)

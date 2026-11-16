@@ -142,7 +142,6 @@
   ],
   "void_active_before": []
  },
- "database": "history.duckdb",
  "dbt_tests": {
   "after": {
    "failed": [
@@ -174,6 +173,7 @@
   1,
   5
  ],
+ "ran_against_the_shared_database": false,
  "recorded_a_new_version": {
   "check": [
    1,

@@ -181,7 +181,18 @@ def execute(command, timeout):
     record = {
         "status": "ran" if done.returncode == 0 else "failed",
         "exit_code": done.returncode,
-        "output_lines": len(tail),
+        # Whether the step said anything, and not how much it said. A line
+        # count passes the rule about a manifest carrying counts rather than
+        # wall times, and it re-derives no better than a wall time, because it
+        # counts a tool's chatter rather than any work. The re-measure on
+        # 2026-11-16 moved `terraform init` from 15 lines to 24 on a cold
+        # plugin cache and `dbt seed` from 27 to 24 on a warm target
+        # directory, with nothing in this repository changed.
+        #
+        # The run before it removed the log for a passing step for this reason
+        # and kept the count of the log, which is the same instability at a
+        # lower resolution.
+        "produced_output": bool(tail),
     }
     if done.returncode != 0:
         # Output on a failure and not otherwise. A step that passed has
