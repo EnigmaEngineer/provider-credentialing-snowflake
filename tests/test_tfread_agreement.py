@@ -49,6 +49,35 @@ def independent_reading(path):
     return out
 
 
+def independent_values(path):
+    """The same files read for scalar VALUES rather than argument names.
+
+    tfread gained a value reader on 2026-11-17 because a credit model has to
+    know what size somebody wrote, not only that a size is set. A hand written
+    reader of values is a worse thing to trust than a hand written reader of
+    names, since a wrong value is a wrong published figure rather than a rule
+    that does not fire. So it is graded here in both directions.
+    """
+    hcl2 = load_hcl2()
+    out = {}
+    for name in sorted(os.listdir(path)):
+        if not name.endswith(".tf"):
+            continue
+        with open(os.path.join(path, name), encoding="utf-8") as fh:
+            doc = hcl2.load(fh)
+        for res in doc.get("resource", []):
+            for kind, bodies in res.items():
+                for label, body in bodies.items():
+                    scalars = {}
+                    for arg, value in body.items():
+                        if isinstance(value, bool) or isinstance(value, (int, float)):
+                            scalars[arg] = value
+                        elif isinstance(value, str) and "${" not in value:
+                            scalars[arg] = value
+                    out["%s.%s" % (kind, label)] = scalars
+    return out
+
+
 def my_reading(path):
     return {
         b.label: b
@@ -131,3 +160,46 @@ def check_the_parser_agrees_the_broken_fixture_is_missing_what_the_rules_want():
     assert "rsa_public_key" not in theirs["snowflake_service_user.password_please"]
     assert "auto_ingest" not in theirs["snowflake_pipe.manual"]
     assert "privileges" not in theirs["snowflake_grant_privileges_to_account_role.silent"]
+
+
+def check_every_value_the_reader_reports_agrees_with_the_parser():
+    """A value tfread returns and the parser disagrees with is a wrong figure."""
+    for path in (INFRA, BAD):
+        mine = my_reading(path)
+        theirs = independent_values(path)
+        for label, block in mine.items():
+            for arg, value in block.values.items():
+                assert arg in theirs[label], (path, label, arg, "the parser saw no scalar here")
+                assert theirs[label][arg] == value, (path, label, arg, value, theirs[label][arg])
+
+
+def check_the_reader_resolves_no_value_the_parser_treats_as_an_expression():
+    """An expression recorded as a value would be source text under a name that promises an answer.
+
+    credit_quota is `var.monthly_credit_quota` in this configuration, so the
+    reader has to return None for it rather than the string `var.`-something,
+    and the credit model has to be able to tell a quota nobody wrote from one
+    written as a literal.
+    """
+    mine = my_reading(INFRA)
+    monitor = mine["snowflake_resource_monitor.screening"]
+    assert "credit_quota" in monitor.args
+    assert monitor.value("credit_quota") is None
+
+
+def check_a_value_the_parser_sees_and_the_reader_skips_is_an_expression_or_a_collection():
+    """The other direction, and it is allowed to be lossy in one stated way.
+
+    The reader takes quoted strings, bare numbers and bare booleans at the top
+    level and nothing else. Anything the parser reports that the reader did
+    not take has to be something outside that set, rather than a scalar it
+    simply missed.
+    """
+    for path in (INFRA, BAD):
+        mine = my_reading(path)
+        theirs = independent_values(path)
+        for label, scalars in theirs.items():
+            for arg, value in scalars.items():
+                if arg in mine[label].values:
+                    continue
+                assert isinstance(value, str), (path, label, arg, value)

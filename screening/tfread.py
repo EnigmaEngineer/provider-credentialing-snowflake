@@ -18,6 +18,23 @@ from dataclasses import dataclass, field
 
 HEREDOC = re.compile(r"<<-?([A-Za-z_][A-Za-z0-9_]*)\s*$")
 ARG = re.compile(r"^([a-z_][a-z0-9_]*)\s*=")
+# A scalar argument and its literal. Only a quoted string, a number or a
+# bare true or false. Anything else is an expression, and an expression
+# resolves at plan time against values this reader does not have, so
+# recording it as a value would be recording the source text under a name
+# that promises an answer.
+# A quoted string here matches escapes rather than running to the last quote
+# on the line, because a value may contain one. The configuration writes
+# field_optionally_enclosed_by as a single escaped quote and the greedy
+# version of this took the backslash with it.
+SCALAR = re.compile(
+    r'^([a-z_][a-z0-9_]*)\s*=\s*((?:"(?:[^"\\]|\\.)*")|-?[0-9]+(?:\.[0-9]+)?|true|false)\s*$'
+)
+# The escapes terraform's own string syntax defines. An unknown escape keeps
+# its backslash rather than being silently dropped, because dropping one would
+# turn a value this reader cannot handle into a value that looks handled.
+ESCAPES = {'\\"': '"', "\\\\": "\\", "\\n": "\n", "\\r": "\r", "\\t": "\t"}
+UNESCAPE = re.compile(r'\\.')
 NESTED = re.compile(r"^([a-z_][a-z0-9_]*)\s*\{\s*$")
 HEADER = re.compile(r'^(resource|provider|variable|terraform|output|data)\b(.*)\{\s*$')
 LABEL = re.compile(r'"([^"]*)"')
@@ -45,6 +62,10 @@ class Block:
     # block is present and a rule about a policy taking two arguments needs
     # to know there are two.
     nested_counts: dict = field(default_factory=dict)
+    # The literal behind a top level scalar argument, by argument name. A
+    # rule asking whether an element is present reads args. A rule asking
+    # what a warehouse costs has to read what size somebody wrote.
+    values: dict = field(default_factory=dict)
     # And how many times each argument name is set below the top level. A
     # view attaches one conditional policy per column, so a rule asking
     # whether every one of them was given its deciding column is counting.
@@ -58,6 +79,15 @@ class Block:
     def address(self):
         """resource kind and name, the way a reference to it is spelled."""
         return ".".join(self.labels[:2])
+
+    def value(self, name, default=None):
+        """The literal behind a top level scalar argument.
+
+        A default of None is returned both for an argument nobody set and
+        for one set to an expression. Those are different situations and a
+        caller that cares reads args to tell them apart.
+        """
+        return self.values.get(name, default)
 
     def count_nested(self, name):
         return self.nested_counts.get(name, 0)
@@ -100,6 +130,19 @@ def strip_comments(text):
     are deleting the explanation or weakening the rule.
     """
     return "\n".join(_strip_comment(line) for line in text.splitlines())
+
+
+def _literal(text):
+    """A terraform scalar literal as the python value it stands for."""
+    if text == "true":
+        return True
+    if text == "false":
+        return False
+    if text.startswith('"'):
+        return UNESCAPE.sub(lambda m: ESCAPES.get(m.group(0), m.group(0)), text[1:-1])
+    if "." in text:
+        return float(text)
+    return int(text)
 
 
 def blocks(text):
@@ -158,6 +201,9 @@ def blocks(text):
             am = ARG.match(line)
             if am:
                 current.args.add(am.group(1))
+                sm = SCALAR.match(line)
+                if sm:
+                    current.values[sm.group(1)] = _literal(sm.group(2))
             if line in ("}", "},"):
                 depth = 0
                 current = None

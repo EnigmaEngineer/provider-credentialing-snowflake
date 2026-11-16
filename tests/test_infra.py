@@ -617,3 +617,37 @@ def check_a_heredoc_opened_on_a_line_of_its_own_records_no_argument():
     assert len(got) == 1, [b.label for b in got]
     assert got[0].args == {"name", "statements"}, got[0].args
     assert got[0].nested_args == set(), got[0].nested_args
+
+
+def check_the_value_reader_unescapes_a_quoted_string():
+    """The load format writes a single escaped quote and the first reader kept the backslash.
+
+    Found by the agreement check against the independent parser on the first
+    run after the value reader was added. It is graded here as well, because
+    the agreement check needs a parser this suite does not insist on and this
+    one runs on a clone with nothing installed.
+    """
+    text = 'resource "snowflake_file_format_csv" "x" {\n'
+    text += '  field_optionally_enclosed_by = "\\""\n'
+    text += '  record_delimiter             = "\\n"\n'
+    text += '  comment                      = "plain"\n'
+    text += "}\n"
+    block = tfread.resources(text)[0]
+    assert block.value("field_optionally_enclosed_by") == '"'
+    assert block.value("record_delimiter") == "\n"
+    assert block.value("comment") == "plain"
+
+
+def check_the_value_reader_returns_nothing_for_an_expression():
+    text = 'resource "snowflake_resource_monitor" "m" {\n  credit_quota = var.monthly_credit_quota\n}\n'
+    block = tfread.resources(text)[0]
+    assert "credit_quota" in block.args
+    assert block.value("credit_quota") is None
+
+
+def check_the_value_reader_reads_numbers_and_booleans_as_themselves():
+    text = 'resource "snowflake_warehouse" "w" {\n  auto_suspend = 60\n  initially_suspended = true\n  scaling = 1.5\n}\n'
+    block = tfread.resources(text)[0]
+    assert block.value("auto_suspend") == 60
+    assert block.value("initially_suspended") is True
+    assert block.value("scaling") == 1.5
