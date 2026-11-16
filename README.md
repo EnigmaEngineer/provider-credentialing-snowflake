@@ -313,7 +313,44 @@ Catalog Error: Table with name "staging.stg_credentialing__provider" does not ex
 ```
 
 A combined build orders it correctly. Running the snapshots on their own does
-not.
+not. That is the loud half and it is the half anybody finds on the first run.
+
+### The same rule in the other direction, which is quiet
+
+`int_screening__screening_currency` reads the `provider_attribute` snapshot. So
+a cycle that records the history after it builds the marts should read the
+history as it stood before the cycle started. The measurement ran the first
+cycle in the derived order, moved one provider's surname in the source, and ran
+the second cycle both ways.
+
+| Figure | Count |
+|---|---|
+| attribute versions the mart publishes in the derived order | 1 |
+| attribute versions the mart publishes with the snapshot last | 1 |
+| attribute versions the mart publishes with the snapshot last and the marts as tables | 0 |
+| attribute versions the snapshot holds in that third arm | 1 |
+
+The second row is what corrected the rule. Every intermediate model is a view,
+and a view is evaluated when something queries it, so the snapshot has already
+run by then. The position of those two stages inside a cycle is invisible today.
+
+The third row is what happens when a mart is a table instead. The mart
+publishes a history with nothing in it, the snapshot holds the version that
+moved, and `assert_no_active_provider_was_screened_before_their_attributes_moved`
+passes. The assertion that exists to catch a screening taken before the
+attributes moved is what the wrong order switches off. The cycle exits zero and
+a provider who needs rescreening is not in the queue.
+
+So the ordering rule is latent rather than satisfied. It is one line per model
+away from mattering and it is not the line in `dbt_project.yml`. Each
+intermediate model sets its own materialisation in its own `config` call and the
+model wins, so editing the project default changes nothing. The first run of
+this measurement edited the project default and reported that the order did not
+matter.
+
+`scripts/measure_cycle_order.py` writes `measurements/cycle-order.json` and the
+stage commands in it come out of the cycle graph below rather than being typed
+beside it.
 
 ## Replication, and the setting that is not in any configuration
 
@@ -549,6 +586,94 @@ candidate rows where the warehouse has five, because it built the relation out
 of the tier cascade and the model unions all three tiers. The suite compares
 the two arms row by row now, over the columns the warehouse manifest names.
 
+## The monthly cycle, and the order nobody writes down
+
+The cycle runs once per published exclusion list. `orchestration/cycle.py`
+declares what each stage produces and derives the order from the project's own
+SQL, and `orchestration/dags/monthly_screening.py` walks that answer. No stage
+declares what comes before it, because the order a person writes by hand is the
+order the next edit gets wrong. The section above is the measurement of what
+getting it wrong costs.
+
+| Figure | Count |
+|---|---|
+| tasks in the monthly cycle | 6 |
+| dependencies between them, with the implied ones removed | 5 |
+
+```
+  land_registry_files ------+
+                            +--> transform_staging --> record_attribute_history
+  replicate_credentialing --+                                     |
+                                                                  v
+                                       grade_the_cycle <-- transform_intermediate
+```
+
+The history sits between the staging models and the marts rather than at the
+end. It reads the staging models and `int_screening__screening_currency` reads
+it, so both edges are derived from a `ref` call and neither is a preference.
+
+What the derivation refuses, and each one is a defect rather than tidiness.
+
+- A model or a snapshot no stage produces. It would be left out of the cycle in
+  silence, which is the failure a manifest that does not mention a model always
+  has.
+- A relation two stages both produce. On a snapshot that means two versions
+  recorded for one change.
+- A dependency that points backwards. That is the catalog error above, raised
+  before anything runs.
+- A source a model reads that no stage lands. One is named in the module with
+  its reason and the named set is compared against what the derivation finds, in
+  both directions, so a second one fails rather than joining the exception
+  quietly.
+
+The two landing stages are the halves that need an account. The registry files
+arrive through the pipe and the credentialing tables arrive through the
+replication connector, and neither runs on this orchestrator's schedule. So the
+credentialing stage is a boundary with nothing to run rather than a task, and
+what belongs there is a deferrable sensor on the connector's last completed
+sync.
+
+A parse is the only grading a project with no deployment can do. It catches an
+import error, a duplicate task id, a cycle in the dependencies and a schedule
+the scheduler cannot read. It catches nothing about whether a task works,
+because no task runs. `scripts/dag_parse.py` writes
+`measurements/dag-parse.json` and the suite reads it, so the checks stay
+runnable on a clone with Airflow absent. Airflow 2 and not 3, because Composer 2
+and the Astronomer runtime images run Airflow 2 and the authoring imports differ
+between them.
+
+### The workflow is executed now, and two jobs of five is the honest figure
+
+Twelve checks read `.github/workflows/ci.yml` and none of them ran it. The
+configuration job exited non zero for four days while those twelve passed,
+because `terraform fmt -check` had landed and an unformatted file landed after
+it. `scripts/run_workflow.py` takes the `run` steps of a job in order, executes
+each one with the shell, and records the exit code.
+
+| Figure | Count |
+|---|---|
+| jobs in the workflow | 5 |
+| jobs a local run executed a step of | 2 |
+| workflow steps a local run executed | 7 |
+| workflow steps it did not execute | 18 |
+
+A step it cannot execute is recorded as not executed with the reason, and that
+is the part worth reading. A runner that silently skipped what it could not do
+would report the same clean answer the static checks already report. So the
+verdict has three values rather than two. A step that ran and exited non zero
+is a failure. A step nothing could run here leaves the run incomplete, which is
+not a pass.
+
+The transform job is the one that runs the models, on a local engine, on every
+pull request. The clone job is the zero copy clone and it is held off, because
+there is no account to clone from. Its statements live in
+`orchestration/clone.py` rather than in the workflow file, because SQL inside a
+YAML string is read by nothing and that is the same hazard as a policy body
+inside a terraform string. The clone is transient with a retention of zero days,
+so a clone the teardown never dropped stops costing within a day. The pull
+request number is required to be an integer, because the database name goes into
+DDL with no way to parameterise it.
+
 ## The gate on the configuration
 
 `terraform validate` reads a value and asks whether the provider accepts it.
@@ -621,6 +746,33 @@ python3 scripts/measure_access.py
 python3 scripts/measure_access_warehouse.py --database transform/target/screening.duckdb
 ```
 
+The cycle order measurement needs dbt and duckdb and nothing else. It copies
+the transform project into a scratch directory per arm, because one arm has to
+run against a seed that moved and the committed seeds are the answer key for
+everything else.
+
+```
+python3 scripts/measure_cycle_order.py
+```
+
+The DAG parse needs Airflow, which does not install on Python 3.13. It runs
+under its own interpreter and its own target directory, and the suite reads the
+manifest rather than importing Airflow at all.
+
+```
+python3.11 -m pip install --target /tmp/airflow apache-airflow==2.11.2
+PYTHONPATH=/tmp/airflow python3.11 scripts/dag_parse.py
+```
+
+The workflow run needs whatever the job it is running needs. No one machine has
+all of it, so `--merge` replaces only the jobs it attempted and every job
+records the machine it was measured on.
+
+```
+python3 scripts/run_workflow.py --job suite
+python3 scripts/run_workflow.py --job configuration --job transform --merge
+```
+
 The suite needs no downloads. Every check reads a committed fixture, and
 `tests/fixtures/PROVENANCE.md` says how each one was built and what was changed
 on the way in.
@@ -662,10 +814,18 @@ provider schema version it pins and unproven against an account. There is no
 Snowflake account identifier and no service user for this project yet, so the
 deploy workflow has nothing to authenticate as.
 
-The workflow in `.github/workflows/ci.yml` has never executed. The checks on it
-read the names of the scripts it calls and the arguments it passes. They cannot
-see whether the state one step leaves is the state the next one needs, which is
-the defect that kind of file usually has.
+Three of the five jobs in `.github/workflows/ci.yml` have never run on a GitHub
+runner, and two of them have never run anywhere. The configuration job and the
+transform job are executed locally by `scripts/run_workflow.py`, which is where
+the figures above come from. The clone job and the deploy job need an account
+and are held off. The suite job is executed by nothing, because the suite grades
+the manifest that a run of it would be recorded in.
+
+A local run is not a runner. It does not build a container, it does not resolve
+an action, and it cannot evaluate a `${{ }}` expression. What it proves is that
+the commands in those two jobs exit zero against this tree on one machine. The
+python the suite job pins is not the python that ran the transform job, and the
+manifest records which machine each job was measured on.
 
 The monthly NPI full file is 1079 MB and nothing here downloads it. The weekly
 incremental shares its record layout, so the readers and the eventual staging
@@ -718,3 +878,27 @@ The warehouse arm runs under duckdb and the policies are written for Snowflake.
 The relation contents are engine independent and the enforcement is not, so the
 arm grades what the views select and nothing about what the policies would do
 to it.
+
+The monthly cycle has never been deployed. What exists is a DAG that Airflow's
+own loader parses and validates, which catches an import error and a duplicate
+task id and a cycle in the dependencies. It says nothing about whether a task
+works, because no task has run. There is no Astronomer deployment and no
+Composer environment for this project.
+
+The two landing stages have no local form at all. The registry files arrive
+through a pipe and the credentialing tables through a replication connector, and
+neither exists. The credentialing stage is an empty operator rather than a
+sensor, so the cycle would transform whatever the raw layer last held rather
+than waiting for a sync that covers the cycle.
+
+The zero copy clone has never been created. `orchestration/clone.py` builds the
+statements and the suite grades the name and the lifecycle. No warehouse has
+ever run one of them. The retention of zero days and the transient database are
+the parts that would matter if a teardown failed, and both are unverified
+against an account.
+
+The ordering rule the cycle enforces is latent. Every intermediate model is a
+view today, so the position of the snapshot stage inside a cycle changes
+nothing, which the measurement above shows directly. The rule is enforced
+anyway, because the cost of it mattering is a green cycle with a stale
+screening in it.
