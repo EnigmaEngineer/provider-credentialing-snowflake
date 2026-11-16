@@ -1,0 +1,250 @@
+{
+ "derived": {
+  "complaints": [],
+  "failed_at": null,
+  "marts_materialized_as": "as the project configures them",
+  "order": [
+   "dbt run --select staging",
+   "dbt snapshot",
+   "dbt run --select intermediate",
+   "dbt test"
+  ],
+  "published_closed_versions": 1,
+  "recorded_closed_versions": 1,
+  "staleness_test": "fail",
+  "steps": [
+   {
+    "command": "dbt seed",
+    "cycle": 1,
+    "exit_code": 0
+   },
+   {
+    "command": "dbt run --select staging",
+    "cycle": 1,
+    "exit_code": 0
+   },
+   {
+    "command": "dbt snapshot",
+    "cycle": 1,
+    "exit_code": 0
+   },
+   {
+    "command": "dbt run --select intermediate",
+    "cycle": 1,
+    "exit_code": 0
+   },
+   {
+    "command": "dbt test",
+    "cycle": 1,
+    "exit_code": 0
+   },
+   {
+    "command": "dbt seed --full-refresh",
+    "cycle": 2,
+    "exit_code": 0
+   },
+   {
+    "command": "dbt run --select staging",
+    "cycle": 2,
+    "exit_code": 0
+   },
+   {
+    "command": "dbt snapshot",
+    "cycle": 2,
+    "exit_code": 0
+   },
+   {
+    "command": "dbt run --select intermediate",
+    "cycle": 2,
+    "exit_code": 0
+   },
+   {
+    "command": "dbt test",
+    "cycle": 2,
+    "exit_code": 1
+   }
+  ],
+  "test_exit_code": 1,
+  "tests_failing": [
+   "assert_no_active_provider_was_screened_before_their_attributes_moved"
+  ]
+ },
+ "derived_order": [
+  "dbt run --select staging",
+  "dbt snapshot",
+  "dbt run --select intermediate",
+  "dbt test"
+ ],
+ "mart_materialization_as_committed": {
+  "int_screening__match_candidate": "view",
+  "int_screening__provider_screening": "view",
+  "int_screening__screening_currency": "view"
+ },
+ "measured": [
+  "derived",
+  "snapshot_late",
+  "snapshot_late_with_table_marts",
+  "snapshot_first_on_an_empty_warehouse",
+  "derived_order",
+  "snapshot_late_order",
+  "mart_materialization_as_committed",
+  "project_default_materialization"
+ ],
+ "moved_provider": 1,
+ "project_default_materialization": "view",
+ "snapshot_first_on_an_empty_warehouse": {
+  "complaints": [
+   "Catalog Error: Table with name \"staging.stg_credentialing__license\" does not exist because schema \"staging\" does not exist.",
+   "Catalog Error: Table with name \"staging.stg_credentialing__provider\" does not exist because schema \"staging\" does not exist.",
+   "Runtime Error in snapshot license_attribute (snapshots/license_attribute.sql)",
+   "Runtime Error in snapshot provider_attribute (snapshots/provider_attribute.sql)",
+   "Runtime Error in snapshot provider_attribute_by_timestamp (snapshots/provider_attribute_by_timestamp.sql)"
+  ],
+  "exit_code": 1
+ },
+ "snapshot_late": {
+  "complaints": [],
+  "failed_at": null,
+  "marts_materialized_as": "as the project configures them",
+  "order": [
+   "dbt run --select staging",
+   "dbt run --select intermediate",
+   "dbt snapshot",
+   "dbt test"
+  ],
+  "published_closed_versions": 1,
+  "recorded_closed_versions": 1,
+  "staleness_test": "fail",
+  "steps": [
+   {
+    "command": "dbt seed",
+    "cycle": 1,
+    "exit_code": 0
+   },
+   {
+    "command": "dbt run --select staging",
+    "cycle": 1,
+    "exit_code": 0
+   },
+   {
+    "command": "dbt snapshot",
+    "cycle": 1,
+    "exit_code": 0
+   },
+   {
+    "command": "dbt run --select intermediate",
+    "cycle": 1,
+    "exit_code": 0
+   },
+   {
+    "command": "dbt test",
+    "cycle": 1,
+    "exit_code": 0
+   },
+   {
+    "command": "dbt seed --full-refresh",
+    "cycle": 2,
+    "exit_code": 0
+   },
+   {
+    "command": "dbt run --select staging",
+    "cycle": 2,
+    "exit_code": 0
+   },
+   {
+    "command": "dbt run --select intermediate",
+    "cycle": 2,
+    "exit_code": 0
+   },
+   {
+    "command": "dbt snapshot",
+    "cycle": 2,
+    "exit_code": 0
+   },
+   {
+    "command": "dbt test",
+    "cycle": 2,
+    "exit_code": 1
+   }
+  ],
+  "test_exit_code": 1,
+  "tests_failing": [
+   "assert_no_active_provider_was_screened_before_their_attributes_moved"
+  ]
+ },
+ "snapshot_late_order": [
+  "dbt run --select staging",
+  "dbt run --select intermediate",
+  "dbt snapshot",
+  "dbt test"
+ ],
+ "snapshot_late_with_table_marts": {
+  "complaints": [],
+  "failed_at": null,
+  "marts_materialized_as": "table",
+  "order": [
+   "dbt run --select staging",
+   "dbt run --select intermediate",
+   "dbt snapshot",
+   "dbt test"
+  ],
+  "published_closed_versions": 0,
+  "recorded_closed_versions": 1,
+  "staleness_test": "pass",
+  "steps": [
+   {
+    "command": "dbt seed",
+    "cycle": 1,
+    "exit_code": 0
+   },
+   {
+    "command": "dbt run --select staging",
+    "cycle": 1,
+    "exit_code": 0
+   },
+   {
+    "command": "dbt snapshot",
+    "cycle": 1,
+    "exit_code": 0
+   },
+   {
+    "command": "dbt run --select intermediate",
+    "cycle": 1,
+    "exit_code": 0
+   },
+   {
+    "command": "dbt test",
+    "cycle": 1,
+    "exit_code": 0
+   },
+   {
+    "command": "dbt seed --full-refresh",
+    "cycle": 2,
+    "exit_code": 0
+   },
+   {
+    "command": "dbt run --select staging",
+    "cycle": 2,
+    "exit_code": 0
+   },
+   {
+    "command": "dbt run --select intermediate",
+    "cycle": 2,
+    "exit_code": 0
+   },
+   {
+    "command": "dbt snapshot",
+    "cycle": 2,
+    "exit_code": 0
+   },
+   {
+    "command": "dbt test",
+    "cycle": 2,
+    "exit_code": 0
+   }
+  ],
+  "test_exit_code": 0,
+  "tests_failing": []
+ },
+ "staleness_test": "assert_no_active_provider_was_screened_before_their_attributes_moved"
+}
