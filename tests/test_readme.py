@@ -27,10 +27,23 @@ MANIFESTS = {
     "history": os.path.join(ROOT, "measurements", "history.json"),
     "access": os.path.join(ROOT, "measurements", "access.json"),
     "access_warehouse": os.path.join(ROOT, "measurements", "access_warehouse.json"),
+    "cycle_order": os.path.join(ROOT, "measurements", "cycle-order.json"),
+    "dag_parse": os.path.join(ROOT, "measurements", "dag-parse.json"),
+    "workflow_run": os.path.join(ROOT, "measurements", "workflow-run.json"),
 }
 
 # Table label in the README, then the manifest and the path within it.
 PUBLISHED = (
+    ("attribute versions the mart publishes in the derived order", ("cycle_order", "derived", "published_closed_versions")),
+    ("attribute versions the mart publishes with the snapshot last", ("cycle_order", "snapshot_late", "published_closed_versions")),
+    ("attribute versions the mart publishes with the snapshot last and the marts as tables", ("cycle_order", "snapshot_late_with_table_marts", "published_closed_versions")),
+    ("attribute versions the snapshot holds in that third arm", ("cycle_order", "snapshot_late_with_table_marts", "recorded_closed_versions")),
+    ("tasks in the monthly cycle", ("dag_parse", "dags", "monthly_screening", "task_count")),
+    ("dependencies between them, with the implied ones removed", ("dag_parse", "dags", "monthly_screening", "edge_count")),
+    ("jobs in the workflow", ("workflow_run", "summary", "jobs_in_the_workflow")),
+    ("jobs a local run executed a step of", ("workflow_run", "summary", "jobs_with_an_executed_step")),
+    ("workflow steps a local run executed", ("workflow_run", "summary", "steps_executed")),
+    ("workflow steps it did not execute", ("workflow_run", "summary", "steps_not_executed")),
     ("exclusion records", ("registries", "exclusions", "npi_column", "records")),
     ("records whose NPI column holds the character zero", ("registries", "exclusions", "npi_column", "absent")),
     ("records with an NPI that passes its check digit", ("registries", "exclusions", "npi_column", "usable")),
