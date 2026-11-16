@@ -1,0 +1,14 @@
+jobs:
+  clone:
+    steps:
+      - name: build against the clone
+        env:
+          DBT_DATABASE: ${{ format('SCREENING_CI_PR_{0}', github.event.number) }}
+        run: dbt build
+  deploy:
+    steps:
+      - name: apply
+        env:
+          TF_VAR_organization_name: ${{ vars.SNOWFLAKE_ORGANIZATION }}
+          TF_VAR_nobody_declared_this: ${{ vars.SOMETHING }}
+        run: terraform apply

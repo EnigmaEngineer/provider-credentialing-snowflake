@@ -1,0 +1,176 @@
+{
+  "account_level_created_count": 13,
+  "account_level_kinds": [
+    "warehouse",
+    "role",
+    "database",
+    "user",
+    "monitor",
+    "storage integration"
+  ],
+  "consumer_sites": 7,
+  "created": {
+    "CREDENTIALING": [
+      "schema",
+      "snowflake_schema.raw_credentialing"
+    ],
+    "MATCH_CANDIDATE": [
+      "view",
+      "snowflake_view.match_candidate"
+    ],
+    "POLICY_EXEMPT_ROLE": [
+      "table",
+      "snowflake_table.policy_exempt_role"
+    ],
+    "REGISTRY": [
+      "schema",
+      "snowflake_schema.raw_registry"
+    ],
+    "REGISTRY_LANDING": [
+      "stage",
+      "snowflake_stage_external_s3.registry"
+    ],
+    "REVIEW": [
+      "schema",
+      "snowflake_schema.analytics_review"
+    ],
+    "REVIEW_ASSIGNMENT": [
+      "table",
+      "snowflake_table.review_assignment"
+    ],
+    "REVIEW_QUEUE": [
+      "view",
+      "snowflake_view.review_queue"
+    ],
+    "SCREENING_ANALYST": [
+      "role",
+      "snowflake_account_role.analyst"
+    ],
+    "SCREENING_ANALYTICS": [
+      "database",
+      "snowflake_database.analytics"
+    ],
+    "SCREENING_CI_WH": [
+      "warehouse",
+      "snowflake_warehouse.ci"
+    ],
+    "SCREENING_LOADER": [
+      "role",
+      "snowflake_account_role.loader"
+    ],
+    "SCREENING_LOADER_SVC": [
+      "user",
+      "snowflake_service_user.loader"
+    ],
+    "SCREENING_LOAD_WH": [
+      "warehouse",
+      "snowflake_warehouse.loading"
+    ],
+    "SCREENING_MONITOR": [
+      "monitor",
+      "snowflake_resource_monitor.screening"
+    ],
+    "SCREENING_RAW": [
+      "database",
+      "snowflake_database.raw"
+    ],
+    "SCREENING_REGISTRY_LANDING": [
+      "storage integration",
+      "snowflake_storage_integration_aws.registry_landing"
+    ],
+    "SCREENING_REPORT_WH": [
+      "warehouse",
+      "snowflake_warehouse.reporting"
+    ],
+    "SCREENING_REVIEWER": [
+      "role",
+      "snowflake_account_role.reviewer"
+    ],
+    "SCREENING_TRANSFORMER": [
+      "role",
+      "snowflake_account_role.transformer"
+    ],
+    "SCREENING_XFORM_WH": [
+      "warehouse",
+      "snowflake_warehouse.transforming"
+    ]
+  },
+  "created_count": 21,
+  "created_elsewhere": [
+    "SCREENING_CI_PR_"
+  ],
+  "created_with_a_name_this_reader_cannot_resolve": [],
+  "declared_variables": 18,
+  "measured": [
+    "created",
+    "spent",
+    "problems",
+    "unconsumed_on_purpose",
+    "torn_down_by"
+  ],
+  "problem_count": 0,
+  "problems": {
+    "a_name_spent_and_not_created": [],
+    "a_required_variable_not_supplied": [],
+    "a_variable_passed_and_not_declared": [],
+    "a_variable_set_and_not_read": [],
+    "an_object_created_and_not_spent": [],
+    "an_object_with_no_teardown": []
+  },
+  "profile_env_var_calls": 7,
+  "profile_identities_read": 7,
+  "read_by_a_third_party": [
+    "SNOWFLAKE_TOKEN_FILE_PATH"
+  ],
+  "required_variables": [
+    "account_name",
+    "ci_user_name",
+    "cost_alert_recipients",
+    "credentialing_database",
+    "credentialing_host",
+    "deploy_warehouse_name",
+    "fivetran_postgres_user",
+    "fivetran_snowflake_role",
+    "fivetran_snowflake_user",
+    "loader_rsa_public_key",
+    "loading_warehouse",
+    "monthly_credit_quota",
+    "organization_name",
+    "raw_database",
+    "registry_landing_url",
+    "snowflake_host",
+    "storage_aws_role_arn"
+  ],
+  "spent": [
+    "SCREENING_ANALYTICS",
+    "SCREENING_CI_PR_",
+    "SCREENING_CI_WH",
+    "SCREENING_TRANSFORMER",
+    "SCREENING_XFORM_WH"
+  ],
+  "spent_count": 5,
+  "torn_down_by": {
+    "SCREENING_CI_PR_": "orchestration.clone.drop_statements"
+  },
+  "unconsumed_on_purpose": [
+    "SCREENING_ANALYST",
+    "SCREENING_LOADER",
+    "SCREENING_LOADER_SVC",
+    "SCREENING_LOAD_WH",
+    "SCREENING_MONITOR",
+    "SCREENING_RAW",
+    "SCREENING_REGISTRY_LANDING",
+    "SCREENING_REPORT_WH",
+    "SCREENING_REVIEWER"
+  ],
+  "workflow_environment_names": [
+    "PR",
+    "SNOWFLAKE_DATABASE",
+    "SNOWFLAKE_TOKEN_FILE_PATH",
+    "SNOWFLAKE_WAREHOUSE",
+    "TF_VAR_account_name",
+    "TF_VAR_ci_user_name",
+    "TF_VAR_deploy_warehouse_name",
+    "TF_VAR_organization_name"
+  ]
+}

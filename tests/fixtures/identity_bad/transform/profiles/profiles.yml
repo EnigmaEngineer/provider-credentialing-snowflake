@@ -1,0 +1,8 @@
+screening:
+  target: duckdb
+  outputs:
+    snowflake:
+      type: snowflake
+      role: "{{ env_var('SNOWFLAKE_ROLE', 'SCREENING_TRANSFORM') }}"
+      warehouse: "{{ env_var('SNOWFLAKE_WAREHOUSE', 'SCREENING_TRANSFORM_WH') }}"
+      database: "{{ env_var('SNOWFLAKE_DATABASE', 'SCREENING_ANALYTICS') }}"
